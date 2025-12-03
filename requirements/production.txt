@@ -1,0 +1,11 @@
+-r base.txt
+
+# Production Server
+gunicorn>=21.0,<23.0
+
+# Security
+django-secure>=1.0,<2.0
+
+# Logging
+sentry-sdk>=1.39,<2.0
+
