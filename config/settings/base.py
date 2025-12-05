@@ -245,3 +245,10 @@ LOGGING = {
     },
 }
 
+# ============================================================================
+# Kolosal AI Configuration
+# ============================================================================
+KOLOSAL_API_KEY = env("KOLOSAL_API_KEY", default="")
+KOLOSAL_BASE_URL = env("KOLOSAL_BASE_URL", default="https://api.kolosal.ai/v1")
+KOLOSAL_MODEL = env("KOLOSAL_MODEL", default="Claude Sonnet 4.5")
+

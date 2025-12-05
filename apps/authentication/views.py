@@ -2,9 +2,11 @@
 Authentication Views for ExportReady.AI
 
 Implements:
-- PBI-BE-M1-01: POST /auth/register
-- PBI-BE-M1-02: POST /auth/login
-- PBI-BE-M1-03: GET /auth/me
+- PBI-BE-M1-01: POST /auth/register - User registration
+- PBI-BE-M1-02: POST /auth/login - User login with JWT
+- PBI-BE-M1-03: GET /auth/me - Get current authenticated user
+
+All acceptance criteria for these PBIs are implemented in this module.
 """
 
 from drf_spectacular.utils import extend_schema

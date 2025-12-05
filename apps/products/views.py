@@ -1,14 +1,39 @@
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.generics import RetrieveAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
-from rest_framework import serializers
+"""
+Product Views for ExportReady.AI
+
+Implements:
+- PBI-BE-M2-01: GET /products - List products with pagination
+- PBI-BE-M2-02: GET /products/:id - Get product detail
+- PBI-BE-M2-03: POST /products - Create new product
+- PBI-BE-M2-04: PUT /products/:id - Update product
+- PBI-BE-M2-05: DELETE /products/:id - Delete product
+- PBI-BE-M2-09: POST /products/:id/enrich - Trigger AI enrichment
+
+AI Services called:
+- PBI-BE-M2-06: AI HS Code Mapper
+- PBI-BE-M2-07: AI Description Rewriter
+- PBI-BE-M2-08: AI SKU Generator
+
+All acceptance criteria for these PBIs are implemented in this module.
+"""
+
+import logging
+
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework import serializers, status
+from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from apps.users.models import UserRole
+from core.services import KolosalAIService
 
 from .models import Product, ProductEnrichment
-from .serializers import ProductSerializer, ProductEnrichmentSerializer
-from apps.users.models import UserRole
+from .serializers import ProductEnrichmentSerializer, ProductSerializer
+
+logger = logging.getLogger(__name__)
 
 
 # PBI-BE-M2-01: API GET /products - List products with pagination
@@ -58,35 +83,85 @@ class ProductDetailView(RetrieveUpdateDestroyAPIView):
         return Product.objects.filter(business__user=user)
 
 
-# PBI-BE-M2-09: API POST /products/:id/enrich - Trigger manual AI Enrichment
-# Validasi: product milik user
-# Call semua AI Services (HS Code, Description, SKU)
-# Create atau Update ProductEnrichment
-# Update last_updated_ai timestamp
 class EnrichProductView(APIView):
-    """Manual trigger for AI enrichment. For now it will create placeholder enrichment data."""
+    """
+    Trigger AI enrichment for a product.
+
+    # PBI-BE-M2-09: POST /products/:id/enrich - Trigger manual AI Enrichment
+    # - Validasi: product milik user
+    # - Call semua AI Services (HS Code, Description, SKU)
+    # - Create atau Update ProductEnrichment
+    # - Update last_updated_ai timestamp
+    # - Response: 200 OK dengan enrichment result
+
+    Uses Kolosal AI to generate:
+    - PBI-BE-M2-06: HS Code recommendation (AI HS Code Mapper)
+    - PBI-BE-M2-07: English B2B description (AI Description Rewriter)
+    - PBI-BE-M2-08: SKU code (AI SKU Generator)
+    - English B2B product name
+    - Marketing highlights
+    """
 
     permission_classes = [IsAuthenticated]
 
     def post(self, request, product_id):
         user = request.user
         product = get_object_or_404(Product, id=product_id)
+
         # Check ownership for UMKM
         if user.role != UserRole.ADMIN and product.business.user_id != user.id:
-            return Response({"success": False, "message": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"success": False, "message": "Forbidden"},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         enrichment, created = ProductEnrichment.objects.get_or_create(product=product)
 
-        # PBI-BE-M2-06: Service AI HS Code Mapper
-        # PBI-BE-M2-07: Service AI Description Rewriter
-        # PBI-BE-M2-08: Service AI SKU Generator
-        # Placeholder enrichment logic (replace with AI calls)
-        enrichment.hs_code_recommendation = "00000000"
-        enrichment.sku_generated = f"CAT-MAT-{product.id:03d}"
-        enrichment.name_english_b2b = product.name_local + " (English)"
-        enrichment.description_english_b2b = (product.description_local[:300])
-        enrichment.marketing_highlights = ["Handmade", "High Quality"]
-        enrichment.save()
+        try:
+            # Initialize Kolosal AI Service
+            ai_service = KolosalAIService()
 
-        serializer = ProductEnrichmentSerializer(enrichment)
-        return Response({"success": True, "data": serializer.data}, status=status.HTTP_200_OK)
+            # PBI-BE-M2-06: Service AI HS Code Mapper
+            # PBI-BE-M2-07: Service AI Description Rewriter
+            # PBI-BE-M2-08: Service AI SKU Generator
+            logger.info(f"Starting AI enrichment for product {product_id}")
+
+            enrichment_data = ai_service.enrich_product(
+                product_name=product.name_local,
+                description_local=product.description_local,
+                material_composition=product.material_composition,
+                category=str(product.category_id),
+                product_id=product.id,
+                business_id=product.business_id,
+            )
+
+            # Update enrichment record
+            enrichment.hs_code_recommendation = enrichment_data["hs_code_recommendation"]
+            enrichment.sku_generated = enrichment_data["sku_generated"]
+            enrichment.name_english_b2b = enrichment_data["name_english_b2b"]
+            enrichment.description_english_b2b = enrichment_data["description_english_b2b"]
+            enrichment.marketing_highlights = enrichment_data["marketing_highlights"]
+            enrichment.last_updated_ai = timezone.now()
+            enrichment.save()
+
+            logger.info(f"AI enrichment completed for product {product_id}")
+
+            serializer = ProductEnrichmentSerializer(enrichment)
+            return Response(
+                {
+                    "success": True,
+                    "message": "Product enriched successfully with AI",
+                    "data": serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            logger.error(f"AI enrichment failed for product {product_id}: {e}")
+            return Response(
+                {
+                    "success": False,
+                    "message": f"AI enrichment failed: {str(e)}"
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

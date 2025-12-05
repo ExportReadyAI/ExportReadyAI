@@ -2,11 +2,13 @@
 BusinessProfile Views for ExportReady.AI
 
 Implements:
-- PBI-BE-M1-04: POST /business-profile
-- PBI-BE-M1-05: GET /business-profile
-- PBI-BE-M1-06: PUT /business-profile/:id
-- PBI-BE-M1-07: PATCH /business-profile/:id/certifications
-- PBI-BE-M1-12: GET /dashboard/summary
+- PBI-BE-M1-04: POST /business-profile - Create business profile (UMKM only)
+- PBI-BE-M1-05: GET /business-profile - Get profile(s) with role-based access
+- PBI-BE-M1-06: PUT /business-profile/:id - Update business profile
+- PBI-BE-M1-07: PATCH /business-profile/:id/certifications - Update certifications
+- PBI-BE-M1-12: GET /dashboard/summary - Dashboard statistics
+
+All acceptance criteria for these PBIs are implemented in this module.
 """
 
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -32,9 +34,17 @@ from .serializers import (
 class BusinessProfileListCreateView(APIView):
     """
     API endpoint for listing and creating business profiles.
-    
-    PBI-BE-M1-04 (POST): Create a new business profile
-    PBI-BE-M1-05 (GET): List business profiles
+
+    # PBI-BE-M1-04 (POST): Create a new business profile
+    # - Accepts: company_name, address, production_capacity_per_month, year_established
+    # - Validates: user belum memiliki profile (1-to-1), semua field wajib
+    # - Auto-assign user_id dari token, default certifications = []
+    # - Response: 201 Created / 400 Bad Request / 409 Conflict
+
+    # PBI-BE-M1-05 (GET): List/Get business profiles
+    # - UMKM: return own profile only
+    # - Admin: return all profiles with pagination, can filter by user_id
+    # - Response: 200 OK / 404 Not Found
     """
 
     permission_classes = [IsAuthenticated, IsAdminOrUMKM]
@@ -142,9 +152,13 @@ class BusinessProfileListCreateView(APIView):
 
 class BusinessProfileDetailView(APIView):
     """
-    API endpoint for retrieving and updating a specific business profile.
-    
-    PBI-BE-M1-06: PUT /business-profile/:id
+    API endpoint for updating a specific business profile.
+
+    # PBI-BE-M1-06: PUT /business-profile/:id
+    # - Accepts: company_name, address, production_capacity_per_month, year_established
+    # - Validates: profile_id milik user yang login, semua field valid
+    # - Update hanya field yang dikirim
+    # - Response: 200 OK / 400 Bad Request / 403 Forbidden / 404 Not Found
     """
 
     permission_classes = [IsAuthenticated, IsUMKM]
@@ -198,8 +212,13 @@ class BusinessProfileDetailView(APIView):
 class BusinessProfileCertificationsView(APIView):
     """
     API endpoint for updating certifications.
-    
-    PBI-BE-M1-07: PATCH /business-profile/:id/certifications
+
+    # PBI-BE-M1-07: PATCH /business-profile/:id/certifications
+    # - Accepts: certifications (array of strings)
+    # - Validates: nilai hanya boleh ["Halal", "ISO", "HACCP", "SVLK"]
+    # - Validates: profile_id milik user yang login
+    # - Update field certifications (replace entire array)
+    # - Response: 200 OK dengan updated certifications
     """
 
     permission_classes = [IsAuthenticated, IsUMKM]
@@ -256,10 +275,13 @@ class BusinessProfileCertificationsView(APIView):
 class DashboardSummaryView(APIView):
     """
     API endpoint for dashboard summary.
-    
-    PBI-BE-M1-12: GET /dashboard/summary
-    - UMKM: product_count, analysis_count, costing_count, has_business_profile
-    - Admin: total_users, total_products, total_analysis
+
+    # PBI-BE-M1-12: GET /dashboard/summary
+    # - Return summary counts untuk dashboard
+    # - UMKM: product_count, analysis_count, costing_count (milik sendiri)
+    # - Admin: total_users, total_products, total_analysis
+    # - Include: has_business_profile (boolean)
+    # - Response: 200 OK dengan summary object
     """
 
     permission_classes = [IsAuthenticated, IsAdminOrUMKM]
