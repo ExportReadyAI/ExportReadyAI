@@ -23,9 +23,14 @@ def custom_exception_handler(exc, context):
     response = exception_handler(exc, context)
 
     if response is not None:
+        # Build base message safely (exc may not have .detail, e.g., Http404)
+        base_message = str(exc)
+        if hasattr(exc, "detail"):
+            base_message = str(exc.detail)
+
         custom_response_data = {
             "success": False,
-            "message": str(exc.detail) if hasattr(exc, "detail") else str(exc),
+            "message": base_message,
         }
 
         # Only process detail if it exists (Http404 doesn't have detail attribute)

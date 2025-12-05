@@ -26,9 +26,12 @@ from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIV
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.pagination import PageNumberPagination
 
 from apps.users.models import UserRole
 from core.services import KolosalAIService
+from core.responses import created_response
+from core.exceptions import ForbiddenException, NotFoundException
 
 from .models import Product, ProductEnrichment
 from .serializers import ProductEnrichmentSerializer, ProductSerializer
@@ -44,6 +47,8 @@ logger = logging.getLogger(__name__)
 class ProductListCreateView(ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ProductSerializer
+    # Use DRF page pagination for this endpoint so tests expect `results` key
+    pagination_class = PageNumberPagination
 
     def get_queryset(self):
         user = self.request.user
@@ -65,6 +70,27 @@ class ProductListCreateView(ListCreateAPIView):
         
         serializer.save(business=business)
 
+    def create(self, request, *args, **kwargs):
+        """Wrap create response to match project created_response format."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return created_response(data=serializer.data, message="Product created successfully")
+
+    def list(self, request, *args, **kwargs):
+        # Explicitly use pagination to return DRF-style paginated response (results key)
+        queryset = self.filter_queryset(self.get_queryset())
+
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(queryset, request)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
 
 # PBI-BE-M2-02: API GET /products/:id - Get product detail
 # PBI-BE-M2-04: API PUT /products/:id - Update product
@@ -76,11 +102,26 @@ class ProductDetailView(RetrieveUpdateDestroyAPIView):
     serializer_class = ProductSerializer
     lookup_url_kwarg = "product_id"
 
-    def get_queryset(self):
+    def get_object(self):
+        # Get product by pk and enforce ownership rules to return 403 when forbidden
+        product_id = self.kwargs.get(self.lookup_url_kwarg)
+        try:
+            product = Product.objects.get(id=product_id)
+        except Product.DoesNotExist:
+            raise NotFoundException("Product not found")
+
+        # Enforce UMKM ownership
         user = self.request.user
-        if user.role == UserRole.ADMIN:
-            return Product.objects.all()
-        return Product.objects.filter(business__user=user)
+        if user.role != UserRole.ADMIN and product.business.user_id != user.id:
+            raise ForbiddenException("Forbidden")
+
+        return product
+
+    def destroy(self, request, *args, **kwargs):
+        # Return standard 204 No Content on successful delete
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class EnrichProductView(APIView):

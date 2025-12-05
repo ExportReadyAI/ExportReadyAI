@@ -28,7 +28,8 @@ class UserManager(BaseUserManager):
         """
         if not email:
             raise ValueError("The Email field must be set")
-        email = self.normalize_email(email)
+        # Normalize email and ensure full lowercase to match tests expectations
+        email = self.normalize_email(email).lower()
         extra_fields.setdefault("role", UserRole.UMKM)
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
