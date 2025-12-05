@@ -14,6 +14,13 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+# Import master_data URL patterns
+from apps.master_data.urls import (
+    admin_country_urlpatterns,
+    admin_regulation_urlpatterns,
+    hs_code_urlpatterns,
+)
+
 # API v1 URL patterns
 api_v1_patterns = [
     path("auth/", include("apps.authentication.urls")),
@@ -23,6 +30,10 @@ api_v1_patterns = [
     # Module 3: Export Analysis
     path("export-analysis/", include("apps.export_analysis.urls")),
     path("countries/", include("apps.export_analysis.country_urls")),
+    # Module 5: Master Data (Admin Only)
+    path("hs-codes/", include(hs_code_urlpatterns)),
+    path("admin/countries/", include(admin_country_urlpatterns)),
+    path("admin/regulations/", include(admin_regulation_urlpatterns)),
 ]
 
 urlpatterns = [
