@@ -12,7 +12,14 @@ Services:
 import logging
 from decimal import Decimal
 from django.utils import timezone
+from django.conf import settings
 from .models import ExchangeRate
+
+# Import KolosalAI for pricing recommendations
+try:
+    from core.services import KolosalAIService
+except ImportError:
+    KolosalAIService = None
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +132,80 @@ class PriceCalculatorService:
         fob_usd = exw_usd + trucking_cost_usd + PriceCalculatorService.DOCUMENT_COST_USD
         
         return fob_usd.quantize(Decimal("0.01"))
+    
+    @staticmethod
+    def get_ai_pricing_recommendation(product_name, exw_usd, target_country_code=None):
+        """
+        PBI-BE-M4-03-AI: Get AI-powered pricing recommendations
+        
+        Uses KolosalAI to analyze market conditions and suggest:
+        - Competitive pricing adjustments
+        - Market positioning strategy
+        - Risk/opportunity assessment
+        
+        Args:
+            product_name: str, product name for market context
+            exw_usd: Decimal, calculated EXW price
+            target_country_code: str, target market country code
+        
+        Returns:
+            dict: {"recommendation": str, "risk_level": str, "market_position": str}
+                  or fallback if AI unavailable
+        """
+        if KolosalAIService is None:
+            logger.warning("KolosalAI not available, skipping AI pricing recommendation")
+            return {
+                "recommendation": f"Suggested EXW: ${exw_usd}",
+                "risk_level": "medium",
+                "market_position": "competitive"
+            }
+        
+        try:
+            ai_service = KolosalAIService()
+            
+            prompt = f"""Analisis harga ekspor untuk produk Indonesia: {product_name}
+            
+Harga yang dihitung:
+- EXW (Ex-Works): ${exw_usd}
+- Target Pasar: {target_country_code if target_country_code else 'General'}
+
+Berikan rekomendasi singkat tentang:
+1. Apakah harga kompetitif untuk pasar tersebut?
+2. Strategi positioning (premium/value/economy)?
+3. Level risiko (low/medium/high)?
+
+Respons singkat, max 100 kata."""
+            
+            system_prompt = """Kamu adalah ahli perdagangan internasional dan pricing strategist untuk UMKM Indonesia.
+Berikan insight praktis tentang strategi harga ekspor."""
+            
+            recommendation = ai_service._call_ai(prompt, system_prompt)
+            
+            # Parse recommendation to extract risk level and market position
+            risk_level = "medium"
+            if "high risk" in recommendation.lower():
+                risk_level = "high"
+            elif "low risk" in recommendation.lower():
+                risk_level = "low"
+            
+            market_position = "competitive"
+            if "premium" in recommendation.lower():
+                market_position = "premium"
+            elif "value" in recommendation.lower() or "economy" in recommendation.lower():
+                market_position = "value"
+            
+            return {
+                "recommendation": recommendation,
+                "risk_level": risk_level,
+                "market_position": market_position
+            }
+        except Exception as e:
+            logger.error(f"Error getting AI pricing recommendation: {e}")
+            return {
+                "recommendation": f"Suggested EXW: ${exw_usd}",
+                "risk_level": "medium",
+                "market_position": "competitive"
+            }
     
     @staticmethod
     def calculate_cif(fob_usd, target_country_code=None):
@@ -245,6 +326,8 @@ class CostingService:
         """
         Calculate complete costing with all prices and container optimization
         
+        PBI-BE-M4-03-AI: Includes AI pricing recommendations
+        
         Args:
             product: Product instance
             cogs_per_unit_idr: Decimal
@@ -253,7 +336,7 @@ class CostingService:
             target_country_code: str (optional, for CIF calculation)
         
         Returns:
-            dict: Full costing result
+            dict: Full costing result with AI recommendations
         """
         try:
             # Calculate prices
@@ -278,12 +361,25 @@ class CostingService:
                 weight
             )
             
+            # Get AI pricing recommendations
+            ai_recommendation = PriceCalculatorService.get_ai_pricing_recommendation(
+                product_name=product.name_local,
+                exw_usd=exw_usd,
+                target_country_code=target_country_code
+            )
+            
+            # Append AI recommendation to optimization notes
+            optimization_notes = container_result["notes"]
+            if ai_recommendation:
+                optimization_notes += f" | AI Pricing Insight: {ai_recommendation['recommendation'][:100]}..."
+            
             return {
                 "recommended_exw_price": exw_usd,
                 "recommended_fob_price": fob_usd,
                 "recommended_cif_price": cif_usd,
                 "container_20ft_capacity": container_result["capacity"],
-                "optimization_notes": container_result["notes"],
+                "optimization_notes": optimization_notes,
+                "ai_pricing_recommendation": ai_recommendation,  # Include full AI insight in response
             }
         except Exception as e:
             logger.error(f"Error calculating costing: {e}")

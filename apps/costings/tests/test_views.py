@@ -196,3 +196,58 @@ class TestExchangeRateView:
         assert response.status_code == status.HTTP_200_OK
         latest_rate = ExchangeRate.objects.latest("updated_at")
         assert latest_rate.rate == Decimal("16200.00")
+
+
+@pytest.mark.django_db
+class TestCostingPDFExportView:
+    """Tests for PBI-BE-M4-13 (PDF export)"""
+    
+    def setup_method(self):
+        self.client = APIClient()
+        self.user = UserFactory(role=UserRole.UMKM)
+        self.business = BusinessProfileFactory(user=self.user)
+        self.product = ProductFactory(business=self.business)
+        
+        self.admin_user = UserFactory(role=UserRole.ADMIN)
+        self.admin_business = BusinessProfileFactory()
+        self.admin_product = ProductFactory(business=self.admin_business)
+        
+        ExchangeRateFactory(rate=Decimal("15800.00"))
+    
+    def test_export_pdf_umkm_own_costing(self):
+        """PBI-BE-M4-13: UMKM can export their own costing as PDF"""
+        costing = CostingFactory(product=self.product)
+        
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(f"/api/v1/costings/{costing.id}/pdf/")
+        
+        assert response.status_code == status.HTTP_200_OK
+        assert response.get("Content-Type") == "application/pdf"
+        assert "costing_" in response.get("Content-Disposition", "")
+        assert len(response.content) > 0  # PDF file has content
+    
+    def test_export_pdf_umkm_forbidden(self):
+        """PBI-BE-M4-13: UMKM cannot export other user's costing"""
+        costing = CostingFactory(product=self.admin_product)
+        
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(f"/api/v1/costings/{costing.id}/pdf/")
+        
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+    
+    def test_export_pdf_admin(self):
+        """PBI-BE-M4-13: Admin can export any costing as PDF"""
+        costing = CostingFactory(product=self.product)
+        
+        self.client.force_authenticate(user=self.admin_user)
+        response = self.client.get(f"/api/v1/costings/{costing.id}/pdf/")
+        
+        assert response.status_code == status.HTTP_200_OK
+        assert response.get("Content-Type") == "application/pdf"
+    
+    def test_export_pdf_not_found(self):
+        """PBI-BE-M4-13: Return 404 for non-existent costing"""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get("/api/v1/costings/9999/pdf/")
+        
+        assert response.status_code == status.HTTP_404_NOT_FOUND

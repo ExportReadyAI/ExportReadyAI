@@ -27,6 +27,10 @@ environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env("SECRET_KEY")
 
+# Admin Registration Code (for first-time admin creation)
+# Set this in .env to allow admin registration without an existing admin token
+ADMIN_REGISTRATION_CODE = env("ADMIN_REGISTRATION_CODE", default="")
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env("DEBUG")
 
