@@ -1,0 +1,326 @@
+{
+  "info": {
+    "_postman_id": "exportready-modul-2-products",
+    "name": "ExportReady.AI - Modul 2 Products",
+    "description": "API collection untuk Modul 2: Manajemen Produk & Spesifikasi (PBI-BE-M2-01 s/d M2-10)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth Flow",
+      "item": [
+        {
+          "name": "Register User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('user_id', jsonData.data.user.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"umkm@exportready.com\",\n  \"password\": \"SecurePassword123\",\n  \"full_name\": \"UMKM Business Owner\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register", ""]
+            }
+          }
+        },
+        {
+          "name": "Login User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('access_token', jsonData.data.tokens.access);",
+                  "    pm.environment.set('refresh_token', jsonData.data.tokens.refresh);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"umkm@exportready.com\",\n  \"password\": \"SecurePassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login", ""]
+            }
+          }
+        },
+        {
+          "name": "Create Business Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('business_id', jsonData.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_name\": \"PT Eksport Maju\",\n  \"address\": \"Jl. Raya Industri No. 123, Jakarta\",\n  \"production_capacity_per_month\": 5000,\n  \"year_established\": 2015\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/business-profile/",
+              "host": ["{{base_url}}"],
+              "path": ["business-profile", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Product CRUD",
+      "item": [
+        {
+          "name": "Create Product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('product_id', jsonData.data.id);",
+                  "    pm.test('Product created successfully', function () {",
+                  "        pm.expect(pm.response.code).to.be.oneOf([201, 200]);",
+                  "    });",
+                  "} else {",
+                  "    console.log('Response:', pm.response.text());",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name_local\": \"Keripik Tempe Premium\",\n  \"category_id\": 1,\n  \"description_local\": \"Keripik tempe renyah dengan bumbu pedas manis yang lezat.\",\n  \"material_composition\": \"Tempe (80%), Minyak Kelapa (15%), Garam (2%), Bumbu Rempah (3%)\",\n  \"production_technique\": \"Machine\",\n  \"finishing_type\": \"Natural Polish\",\n  \"quality_specs\": {\n    \"moisture\": \"5%\",\n    \"tolerance\": \"±2mm\",\n    \"finishing\": \"Crisp\"\n  },\n  \"durability_claim\": \"12 Bulan\",\n  \"packaging_type\": \"Karton\",\n  \"dimensions_l_w_h\": {\n    \"l\": 20,\n    \"w\": 15,\n    \"h\": 5\n  },\n  \"weight_net\": \"0.150\",\n  \"weight_gross\": \"0.170\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products/",
+              "host": ["{{base_url}}"],
+              "path": ["products", ""]
+            },
+            "description": "Create a new product. Pastikan sudah:\n1. Register User (Step 1)\n2. Login User (Step 2) - ambil access token\n3. Create Business Profile (Step 3) - PENTING!\n\nBaru bisa create product.\n\nField yang WAJIB:\n- name_local: nama produk lokal\n- category_id: ID kategori\n- description_local: deskripsi lokal\n- material_composition: komposisi bahan\n- production_technique: teknik produksi\n- finishing_type: jenis finishing\n- quality_specs: spec kualitas (JSON object)\n- durability_claim: klaim durabilitas\n- packaging_type: tipe kemasan\n- dimensions_l_w_h: dimensi (JSON dengan l, w, h)\n- weight_net: berat bersih (desimal)\n- weight_gross: berat kotor (desimal)\n\nBusiness akan AUTO-ASSIGN dari profile Anda."
+          }
+        },
+        {
+          "name": "List Products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/products/?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["products", ""],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Product Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/products/{{product_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["products", "{{product_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Update Product",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name_local\": \"Keripik Tempe Premium - Updated\",\n  \"category_id\": 1,\n  \"description_local\": \"Keripik tempe renyah premium dengan bumbu pedas manis pilihan.\",\n  \"material_composition\": \"Tempe (85%), Minyak Kelapa (12%), Garam (1%), Bumbu Rempah Premium (2%)\",\n  \"production_technique\": \"Machine\",\n  \"finishing_type\": \"Natural Polish\",\n  \"quality_specs\": {\n    \"moisture\": \"4%\",\n    \"tolerance\": \"±1mm\",\n    \"finishing\": \"Extra Crisp\"\n  },\n  \"durability_claim\": \"18 Bulan\",\n  \"packaging_type\": \"Karton Premium\",\n  \"dimensions_l_w_h\": {\n    \"l\": 22,\n    \"w\": 16,\n    \"h\": 6\n  },\n  \"weight_net\": \"0.160\",\n  \"weight_gross\": \"0.180\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products/{{product_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["products", "{{product_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Delete Product",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/products/{{product_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["products", "{{product_id}}", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Enrichment",
+      "item": [
+        {
+          "name": "Trigger Product Enrichment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    console.log('Enrichment triggered successfully');",
+                  "    console.log('HS Code: ' + jsonData.data.hs_code_recommendation);",
+                  "    console.log('SKU: ' + jsonData.data.sku_generated);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/products/{{product_id}}/enrich/",
+              "host": ["{{base_url}}"],
+              "path": ["products", "{{product_id}}", "enrich", ""]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "business_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "product_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
