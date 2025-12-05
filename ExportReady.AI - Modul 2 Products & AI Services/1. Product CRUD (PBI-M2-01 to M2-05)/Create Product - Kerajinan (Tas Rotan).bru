@@ -1,0 +1,72 @@
+meta {
+  name: Create Product - Kerajinan (Tas Rotan)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/products/
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{access_token}}
+}
+
+body:json {
+  {
+    "name_local": "Tas Rotan Bali Handmade",
+    "category_id": 2,
+    "description_local": "Tas rotan asli Bali buatan tangan pengrajin lokal. Dibuat dari rotan pilihan dengan anyaman tradisional yang kuat dan tahan lama. Cocok untuk fashion wanita modern dengan sentuhan etnik Indonesia.",
+    "material_composition": "Rotan Alam (90%), Kulit Sapi (8%), Kain Batik (2%)",
+    "production_technique": "Handmade",
+    "finishing_type": "Natural Polish",
+    "quality_specs": {
+      "weaving_type": "Traditional Balinese",
+      "durability": "5+ years",
+      "water_resistant": false,
+      "artisan_made": true
+    },
+    "durability_claim": "5 Tahun dengan perawatan baik",
+    "packaging_type": "Kardus dengan Dust Bag",
+    "dimensions_l_w_h": {
+      "l": 30,
+      "w": 12,
+      "h": 25
+    },
+    "weight_net": "0.350",
+    "weight_gross": "0.500"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+      var jsonData = res.getBody();
+      bru.setVar('product_id_craft', jsonData.data.id);
+      
+      test('✅ PBI-M2-03: Craft product created', function () {
+          expect(jsonData.success).to.be.true;
+          expect(jsonData.data.name_local).to.include('Rotan');
+      });
+      
+      console.log('Craft Product ID:', jsonData.data.id);
+  }
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  **PBI-BE-M2-03**: Create new product
+  
+  **Category**: Kerajinan Tangan (Handicraft)
+  **Product**: Tas Rotan Bali Handmade
+  
+  Expected AI Results:
+  - HS Code: ~4602 (Basketwork/wickerwork)
+  - English Name: Handwoven Rattan Bag
+  - SKU: Format {CAT}-{MAT}-{SEQ}
+}

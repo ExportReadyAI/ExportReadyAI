@@ -1,0 +1,52 @@
+meta {
+  name: List All Products
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/products/?page=1&limit=10
+  body: none
+  auth: inherit
+}
+
+params:query {
+  page: 1
+  limit: 10
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+}
+
+script:post-response {
+  var jsonData = res.getBody();
+  
+  test('✅ PBI-M2-01: Products listed with pagination', function () {
+      expect(res.getStatus()).to.eql(200);
+      expect(jsonData.results).to.be.an('array');
+  });
+  
+  test('Pagination info present', function () {
+      expect(jsonData.count).to.be.a('number');
+  });
+  
+  console.log('Total products:', jsonData.count);
+  console.log('Products on this page:', jsonData.results.length);
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  **PBI-BE-M2-01**: List all products with pagination
+  
+  **Query Parameters:**
+  - `page`: Page number (default: 1)
+  - `limit`: Items per page (default: 10)
+  
+  **Access Control:**
+  - UMKM: Only sees their own products
+  - Admin: Sees all products
+}

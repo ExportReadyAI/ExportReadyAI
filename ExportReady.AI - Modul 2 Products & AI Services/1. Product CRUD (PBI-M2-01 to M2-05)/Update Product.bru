@@ -1,0 +1,68 @@
+meta {
+  name: Update Product
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{base_url}}/products/{{product_id}}/
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{access_token}}
+}
+
+body:json {
+  {
+    "name_local": "Keripik Singkong Premium Pedas Manis",
+    "category_id": 1,
+    "description_local": "Keripik singkong PREMIUM renyah dengan bumbu pedas manis khas Indonesia. Dibuat dari singkong pilihan berkualitas EXPORT GRADE yang digoreng hingga renyah sempurna. Best seller untuk pasar internasional.",
+    "material_composition": "Singkong Premium (88%), Minyak Kelapa (8%), Gula Aren (2%), Cabai Pilihan (1.5%), Garam Laut (0.5%)",
+    "production_technique": "Machine",
+    "finishing_type": "Nitrogen Flush Packaging",
+    "quality_specs": {
+      "moisture_content": "2%",
+      "crispiness": "Extra High",
+      "shelf_life": "12 months",
+      "halal_certified": true,
+      "export_grade": true
+    },
+    "durability_claim": "12 Bulan dalam kemasan nitrogen",
+    "packaging_type": "Premium Aluminium Foil Stand Pouch",
+    "dimensions_l_w_h": {
+      "l": 28,
+      "w": 20,
+      "h": 10
+    },
+    "weight_net": "0.300",
+    "weight_gross": "0.350"
+  }
+}
+
+script:post-response {
+  var jsonData = res.getBody();
+  
+  test('✅ PBI-M2-04: Product updated successfully', function () {
+      expect(res.getStatus()).to.eql(200);
+      expect(jsonData.name_local).to.include('Premium');
+  });
+  
+  console.log('Updated product:', jsonData.name_local);
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  **PBI-BE-M2-04**: Update existing product
+  
+  All fields are replaced with new values.
+  
+  **Access Control:**
+  - UMKM: Can only update their own products
+  - Admin: Can update any product
+}

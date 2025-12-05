@@ -1,0 +1,52 @@
+meta {
+  name: Enrich Product - Craft (Tas Rotan)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/products/{{product_id_craft}}/enrich/
+  body: none
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+  Content-Type: application/json
+}
+
+script:post-response {
+  var jsonData = res.getBody();
+  
+  test('✅ AI Enrichment for craft product', function () {
+      expect(res.getStatus()).to.eql(200);
+      expect(jsonData.success).to.be.true;
+  });
+  
+  test('HS Code is 8 digits', function () {
+      expect(jsonData.data.hs_code_recommendation).to.match(/^\d{8}$/);
+  });
+  
+  test('SKU format valid', function () {
+      expect(jsonData.data.sku_generated).to.match(/^[A-Z]{3}-[A-Z]{3}-\d{3}$/);
+  });
+  
+  console.log('=== CRAFT PRODUCT AI RESULTS ===');
+  console.log('HS Code:', jsonData.data.hs_code_recommendation);
+  console.log('SKU:', jsonData.data.sku_generated);
+  console.log('English Name:', jsonData.data.name_english_b2b);
+  console.log('Highlights:', jsonData.data.marketing_highlights);
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  **PBI-BE-M2-09**: Trigger AI enrichment for handicraft product (Tas Rotan)
+  
+  **Expected Results:**
+  - HS Code: 4602xxxx (Basketwork, wickerwork)
+  - English Name: Something like "Handwoven Rattan Bag"
+  - Highlights: Handmade, Eco-friendly, Traditional craft
+}

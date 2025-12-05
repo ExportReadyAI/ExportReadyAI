@@ -11,7 +11,7 @@ from rest_framework.views import exception_handler
 def custom_exception_handler(exc, context):
     """
     Custom exception handler that formats all errors consistently.
-    
+
     Response format:
     {
         "success": false,
@@ -28,14 +28,16 @@ def custom_exception_handler(exc, context):
             "message": str(exc.detail) if hasattr(exc, "detail") else str(exc),
         }
 
-        # Handle validation errors (dict of field errors)
-        if isinstance(exc.detail, dict):
-            custom_response_data["message"] = "Validation failed"
-            custom_response_data["errors"] = exc.detail
-        # Handle list of errors
-        elif isinstance(exc.detail, list):
-            custom_response_data["message"] = exc.detail[0] if exc.detail else "An error occurred"
-            custom_response_data["errors"] = exc.detail
+        # Only process detail if it exists (Http404 doesn't have detail attribute)
+        if hasattr(exc, "detail"):
+            # Handle validation errors (dict of field errors)
+            if isinstance(exc.detail, dict):
+                custom_response_data["message"] = "Validation failed"
+                custom_response_data["errors"] = exc.detail
+            # Handle list of errors
+            elif isinstance(exc.detail, list):
+                custom_response_data["message"] = exc.detail[0] if exc.detail else "An error occurred"
+                custom_response_data["errors"] = exc.detail
 
         response.data = custom_response_data
 

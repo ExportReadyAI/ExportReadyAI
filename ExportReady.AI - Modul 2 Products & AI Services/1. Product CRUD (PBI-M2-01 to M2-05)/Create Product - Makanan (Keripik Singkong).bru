@@ -1,0 +1,77 @@
+meta {
+  name: Create Product - Makanan (Keripik Singkong)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/products/
+  body: json
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{access_token}}
+}
+
+body:json {
+  {
+    "name_local": "Keripik Singkong Pedas Manis",
+    "category_id": 1,
+    "description_local": "Keripik singkong renyah dengan bumbu pedas manis khas Indonesia. Dibuat dari singkong pilihan berkualitas tinggi yang digoreng hingga renyah sempurna. Cocok untuk camilan sehari-hari maupun oleh-oleh.",
+    "material_composition": "Singkong (85%), Minyak Kelapa Sawit (10%), Gula Merah (2%), Cabai Bubuk (2%), Garam (1%)",
+    "production_technique": "Machine",
+    "finishing_type": "Vacuum Sealed",
+    "quality_specs": {
+      "moisture_content": "3%",
+      "crispiness": "High",
+      "shelf_life": "6 months",
+      "halal_certified": true
+    },
+    "durability_claim": "6 Bulan dalam kemasan tertutup",
+    "packaging_type": "Aluminium Foil Pouch",
+    "dimensions_l_w_h": {
+      "l": 25,
+      "w": 18,
+      "h": 8
+    },
+    "weight_net": "0.250",
+    "weight_gross": "0.280"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+      var jsonData = res.getBody();
+      bru.setVar('product_id', jsonData.data.id);
+      bru.setVar('product_id_food', jsonData.data.id);
+      
+      test('✅ PBI-M2-03: Product created successfully', function () {
+          expect(jsonData.success).to.be.true;
+          expect(jsonData.data.id).to.be.a('number');
+          expect(jsonData.data.name_local).to.eql('Keripik Singkong Pedas Manis');
+      });
+      
+      console.log('Product ID:', jsonData.data.id);
+  } else {
+      console.log('Error:', JSON.stringify(res.getBody()));
+  }
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  **PBI-BE-M2-03**: Create new product
+  
+  **Category**: Makanan Olahan (Food)
+  **Product**: Keripik Singkong Pedas Manis
+  
+  This product will be used to test AI enrichment for food category.
+  
+  Expected AI Results:
+  - HS Code: ~2008 (Prepared vegetables/fruits)
+  - SKU: Format {CAT}-{MAT}-{SEQ}
+}

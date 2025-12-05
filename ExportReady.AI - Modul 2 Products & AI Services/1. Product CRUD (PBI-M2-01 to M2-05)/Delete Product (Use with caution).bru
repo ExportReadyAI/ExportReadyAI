@@ -1,0 +1,39 @@
+meta {
+  name: Delete Product (Use with caution)
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{base_url}}/products/{{product_id_to_delete}}/
+  body: none
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+}
+
+script:post-response {
+  test('✅ PBI-M2-05: Product deleted', function () {
+      expect(res.getStatus()).to.be.oneOf([200, 204]);
+  });
+  
+  console.log('Product deleted successfully');
+}
+
+settings {
+  encodeUrl: true
+}
+
+docs {
+  **PBI-BE-M2-05**: Delete product by ID
+  
+  ⚠️ **CAUTION**: This action is irreversible!
+  
+  Set `product_id_to_delete` variable before running.
+  
+  **Access Control:**
+  - UMKM: Can only delete their own products
+  - Admin: Can delete any product
+}
