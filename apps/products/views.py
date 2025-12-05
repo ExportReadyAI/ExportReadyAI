@@ -82,6 +82,19 @@ class ProductDetailView(RetrieveUpdateDestroyAPIView):
             return Product.objects.all()
         return Product.objects.filter(business__user=user)
 
+    def destroy(self, request, *args, **kwargs):
+        """Override destroy to return 200 with message instead of 204."""
+        instance = self.get_object()
+        product_name = instance.name_local
+        self.perform_destroy(instance)
+        return Response(
+            {
+                "success": True,
+                "message": f"Product '{product_name}' deleted successfully"
+            },
+            status=status.HTTP_200_OK
+        )
+
 
 class EnrichProductView(APIView):
     """
