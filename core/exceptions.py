@@ -23,19 +23,26 @@ def custom_exception_handler(exc, context):
     response = exception_handler(exc, context)
 
     if response is not None:
+        # Build base message safely (exc may not have .detail, e.g., Http404)
+        base_message = str(exc)
+        if hasattr(exc, "detail"):
+            base_message = str(exc.detail)
+
         custom_response_data = {
             "success": False,
-            "message": str(exc.detail) if hasattr(exc, "detail") else str(exc),
+            "message": base_message,
         }
 
-        # Handle validation errors (dict of field errors)
-        if isinstance(exc.detail, dict):
-            custom_response_data["message"] = "Validation failed"
-            custom_response_data["errors"] = exc.detail
-        # Handle list of errors
-        elif isinstance(exc.detail, list):
-            custom_response_data["message"] = exc.detail[0] if exc.detail else "An error occurred"
-            custom_response_data["errors"] = exc.detail
+        # Only inspect exc.detail if it exists
+        if hasattr(exc, "detail"):
+            # Handle validation errors (dict of field errors)
+            if isinstance(exc.detail, dict):
+                custom_response_data["message"] = "Validation failed"
+                custom_response_data["errors"] = exc.detail
+            # Handle list of errors
+            elif isinstance(exc.detail, list):
+                custom_response_data["message"] = exc.detail[0] if exc.detail else "An error occurred"
+                custom_response_data["errors"] = exc.detail
 
         response.data = custom_response_data
 

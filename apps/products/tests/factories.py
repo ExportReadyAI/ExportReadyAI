@@ -35,7 +35,8 @@ class BusinessProfileFactory(factory.django.DjangoModelFactory):
     company_name = factory.Faker("company")
     address = factory.Faker("address")
     production_capacity_per_month = factory.Faker("pyint", min_value=100, max_value=10000)
-    year_established = factory.Faker("year_int")
+    # Use a supported faker provider for years
+    year_established = factory.Faker("pyint", min_value=1900, max_value=2025)
 
 
 class ProductFactory(factory.django.DjangoModelFactory):
