@@ -54,6 +54,7 @@ LOCAL_APPS = [
     "apps.authentication",
     "apps.business_profiles",
     "apps.products",
+    "apps.costings",
     "apps.export_analysis",
     "apps.master_data",
 ]
