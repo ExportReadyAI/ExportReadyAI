@@ -447,10 +447,13 @@
               "script": {
                 "exec": [
                   "pm.test('✅ PBI-M2-05: Product deleted', function () {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+                  "pm.test('✅ PBI-M2-05: Product deleted with success message', function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.message).to.include('deleted successfully');",
                   "});",
                   "",
-                  "console.log('Product deleted successfully');"
+                  "console.log('Response:', jsonData.message);"
                 ],
                 "type": "text/javascript"
               }
