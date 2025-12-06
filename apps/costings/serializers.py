@@ -74,6 +74,18 @@ class CostingSerializer(serializers.ModelSerializer):
         if value < 0 or value > 100:
             raise serializers.ValidationError("Margin must be between 0 and 100%")
         return value
+    
+    def create(self, validated_data):
+        """
+        Custom create method to handle write-only fields like target_country_code.
+        These fields are removed from validated_data before model creation.
+        """
+        # Remove write-only fields that don't exist in the model
+        validated_data.pop('target_country_code', None)
+        validated_data.pop('product_id', None)
+        
+        # Create instance with remaining validated data
+        return super().create(validated_data)
 
 
 class UpdateCostingSerializer(serializers.ModelSerializer):
