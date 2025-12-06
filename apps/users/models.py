@@ -15,6 +15,8 @@ class UserRole(models.TextChoices):
 
     ADMIN = "Admin", "Administrator"
     UMKM = "UMKM", "UMKM (Pelaku Usaha)"
+    BUYER = "Buyer", "Buyer (Pembeli/Importir)"
+    FORWARDER = "Forwarder", "Forwarder (Penyedia Jasa Logistik)"
 
 
 class UserManager(BaseUserManager):
@@ -80,7 +82,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     full_name = models.CharField("full name", max_length=255)
     role = models.CharField(
         "role",
-        max_length=10,
+        max_length=20,
         choices=UserRole.choices,
         default=UserRole.UMKM,
     )
@@ -117,4 +119,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def is_umkm(self):
         return self.role == UserRole.UMKM
+
+    @property
+    def is_buyer(self):
+        return self.role == UserRole.BUYER
+
+    @property
+    def is_forwarder(self):
+        return self.role == UserRole.FORWARDER
 
