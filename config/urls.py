@@ -27,6 +27,8 @@ api_v1_patterns = [
     path("users/", include("apps.users.urls")),
     path("business-profile/", include("apps.business_profiles.urls")),
     path("products/", include("apps.products.urls")),
+    # Module 4: Costings & Pricing
+    path("costings/", include("apps.costings.urls")),
     # Module 3: Export Analysis
     path("export-analysis/", include("apps.export_analysis.urls")),
     path("countries/", include("apps.export_analysis.country_urls")),
