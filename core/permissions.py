@@ -56,6 +56,44 @@ class IsUMKM(BasePermission):
         )
 
 
+class IsBuyer(BasePermission):
+    """
+    # PBI-BE-M6-01: Role Guard - Buyer Only
+    # - Validates user role from JWT token
+    # - Returns 403 Forbidden if not Buyer
+
+    Permission class that only allows Buyer users.
+    """
+
+    message = "Only Buyer users can perform this action."
+
+    def has_permission(self, request, view):
+        return (
+            request.user
+            and request.user.is_authenticated
+            and request.user.role == UserRole.BUYER
+        )
+
+
+class IsForwarder(BasePermission):
+    """
+    # PBI-BE-M6-01: Role Guard - Forwarder Only
+    # - Validates user role from JWT token
+    # - Returns 403 Forbidden if not Forwarder
+
+    Permission class that only allows Forwarder users.
+    """
+
+    message = "Only Forwarder users can perform this action."
+
+    def has_permission(self, request, view):
+        return (
+            request.user
+            and request.user.is_authenticated
+            and request.user.role == UserRole.FORWARDER
+        )
+
+
 class IsAdminOrUMKM(BasePermission):
     """
     # PBI-BE-M1-11: Role Guard - Admin or UMKM

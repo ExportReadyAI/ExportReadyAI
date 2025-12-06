@@ -61,6 +61,8 @@ LOCAL_APPS = [
     "apps.costings",
     "apps.export_analysis",
     "apps.master_data",
+    "apps.buyer_requests",
+    "apps.forwarders",
     "apps.catalogs",
 ]
 
