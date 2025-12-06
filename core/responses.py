@@ -6,21 +6,23 @@ from rest_framework import status
 from rest_framework.response import Response
 
 
-def success_response(data=None, message="Success", status_code=status.HTTP_200_OK):
+def success_response(data=None, message="Success", status_code=status.HTTP_200_OK, pagination=None):
     """
     Create a standardized success response.
-    
+
     Args:
         data: The response data (dict, list, or None)
         message: Success message
         status_code: HTTP status code
-    
+        pagination: Optional pagination info dict
+
     Returns:
         Response object with format:
         {
             "success": true,
             "message": "Success message",
-            "data": {...}
+            "data": {...},
+            "pagination": {...}  # Optional
         }
     """
     response_data = {
@@ -29,6 +31,8 @@ def success_response(data=None, message="Success", status_code=status.HTTP_200_O
     }
     if data is not None:
         response_data["data"] = data
+    if pagination is not None:
+        response_data["pagination"] = pagination
     return Response(response_data, status=status_code)
 
 

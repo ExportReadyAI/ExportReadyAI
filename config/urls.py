@@ -21,6 +21,12 @@ from apps.master_data.urls import (
     hs_code_urlpatterns,
 )
 
+# Import costing URL patterns (Module 4)
+from apps.costing.urls import (
+    costing_urlpatterns,
+    exchange_rate_urlpatterns,
+)
+
 # API v1 URL patterns
 api_v1_patterns = [
     path("auth/", include("apps.authentication.urls")),
@@ -30,6 +36,9 @@ api_v1_patterns = [
     # Module 3: Export Analysis
     path("export-analysis/", include("apps.export_analysis.urls")),
     path("countries/", include("apps.export_analysis.country_urls")),
+    # Module 4: Costing & Financial Calculator
+    path("costings/", include(costing_urlpatterns)),
+    path("exchange-rate/", include(exchange_rate_urlpatterns)),
     # Module 5: Master Data (Admin Only)
     path("hs-codes/", include(hs_code_urlpatterns)),
     path("admin/countries/", include(admin_country_urlpatterns)),
