@@ -34,6 +34,7 @@ from .serializers import (
     ExportAnalysisCreateSerializer,
     ExportAnalysisDetailSerializer,
     ExportAnalysisListSerializer,
+    RegulationRecommendationSerializer,
 )
 from .services import ComplianceAIService
 
@@ -469,3 +470,111 @@ class CountryDetailView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class RegulationRecommendationView(APIView):
+    """
+    API: POST /export-analysis/regulation-recommendations
+    
+    Generate comprehensive regulation recommendations for exporting products.
+    Provides SPECIFIC guidance on:
+    - Required certifications with costs and processing times
+    - Labeling requirements with actual regulation references
+    - Material-specific regulations
+    - Packaging requirements
+    - Import documentation checklist
+    - Tariff and trade preferences
+    - Action priority list
+    - Country-specific notes
+    
+    Supports bilingual output (Indonesian/English).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = RegulationRecommendationSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        validated_data = serializer.validated_data
+        language = validated_data.get("language", "id")
+
+        # Get analysis, product, and country from validated data
+        if "_analysis" in validated_data:
+            # Use existing analysis
+            analysis = validated_data["_analysis"]
+            product = analysis.product
+            country = analysis.target_country
+            compliance_issues = analysis.compliance_issues
+        else:
+            # Get or create analysis for product + country
+            product = validated_data["_product"]
+            country = validated_data["_country"]
+            
+            # Check if analysis exists
+            analysis = ExportAnalysis.objects.filter(
+                product=product,
+                target_country=country,
+            ).first()
+
+            if analysis:
+                # Use existing analysis
+                compliance_issues = analysis.compliance_issues
+            else:
+                # Run new compliance analysis
+                logger.info(f"Running compliance analysis for regulation recommendations: {product.id} -> {country.country_code}")
+                ai_service = ComplianceAIService()
+                analysis_result = ai_service.analyze_product_compliance(product, country.country_code)
+                compliance_issues = analysis_result["compliance_issues"]
+                
+                # Create the analysis
+                analysis = ExportAnalysis.objects.create(
+                    product=product,
+                    target_country=country,
+                    readiness_score=analysis_result["readiness_score"],
+                    status_grade=analysis_result["status_grade"],
+                    compliance_issues=compliance_issues,
+                    recommendations=analysis_result["recommendations"],
+                )
+
+        try:
+            # Generate comprehensive regulation recommendations
+            logger.info(f"Generating regulation recommendations for analysis {analysis.id} in language: {language}")
+            ai_service = ComplianceAIService()
+            recommendations = ai_service.generate_regulation_recommendations(
+                product=product,
+                target_country=country,
+                compliance_issues=compliance_issues,
+                language=language,
+            )
+
+            return Response(
+                {
+                    "success": True,
+                    "message": "Regulation recommendations generated successfully" if language == "en" else "Rekomendasi regulasi berhasil dibuat",
+                    "data": {
+                        "analysis_id": analysis.id,
+                        "product_id": product.id,
+                        "product_name": product.name_local,
+                        "target_country": country.country_name,
+                        "country_code": country.country_code,
+                        "readiness_score": analysis.readiness_score,
+                        "status_grade": analysis.status_grade,
+                        "language": language,
+                        **recommendations,
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(f"Error generating regulation recommendations: {e}")
+            return Response(
+                {
+                    "success": False,
+                    "message": f"Failed to generate recommendations: {str(e)}",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

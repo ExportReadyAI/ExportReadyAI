@@ -261,3 +261,72 @@ class ExportAnalysisCompareSerializer(serializers.Serializer):
                 raise serializers.ValidationError(f"Country '{code}' not found")
             validated_codes.append(upper_code)
         return validated_codes
+
+
+class RegulationRecommendationSerializer(serializers.Serializer):
+    """
+    Serializer for generating detailed regulation recommendations.
+    Provides comprehensive export guidance including certifications, labeling, and documentation.
+    """
+
+    analysis_id = serializers.IntegerField(required=False)
+    product_id = serializers.IntegerField(required=False)
+    target_country_code = serializers.CharField(max_length=2, required=False)
+    language = serializers.ChoiceField(
+        choices=["id", "en"],
+        default="id",
+        help_text="Output language: 'id' for Indonesian, 'en' for English"
+    )
+
+    def validate(self, attrs):
+        """Validate that either analysis_id or (product_id + target_country_code) is provided."""
+        analysis_id = attrs.get("analysis_id")
+        product_id = attrs.get("product_id")
+        country_code = attrs.get("target_country_code")
+
+        if not analysis_id and not (product_id and country_code):
+            raise serializers.ValidationError(
+                "Either 'analysis_id' or both 'product_id' and 'target_country_code' must be provided"
+            )
+
+        request = self.context.get("request")
+        if not request:
+            raise serializers.ValidationError("Request context is required")
+
+        # Validate analysis_id if provided
+        if analysis_id:
+            try:
+                analysis = ExportAnalysis.objects.get(id=analysis_id)
+                # Check ownership for UMKM
+                if not request.user.is_staff:
+                    if not hasattr(request.user, "business_profile"):
+                        raise serializers.ValidationError("User does not have a business profile")
+                    if analysis.product.business_id != request.user.business_profile.id:
+                        raise serializers.ValidationError("You can only access your own analyses")
+                attrs["_analysis"] = analysis
+            except ExportAnalysis.DoesNotExist:
+                raise serializers.ValidationError("Analysis not found")
+
+        # Validate product_id and country_code if provided
+        if product_id:
+            try:
+                product = Product.objects.get(id=product_id)
+                # Check ownership
+                if not request.user.is_staff:
+                    if not hasattr(request.user, "business_profile"):
+                        raise serializers.ValidationError("User does not have a business profile")
+                    if product.business_id != request.user.business_profile.id:
+                        raise serializers.ValidationError("You can only analyze your own products")
+                attrs["_product"] = product
+            except Product.DoesNotExist:
+                raise serializers.ValidationError("Product not found")
+
+        if country_code:
+            try:
+                country = Country.objects.get(country_code=country_code.upper())
+                attrs["_country"] = country
+                attrs["target_country_code"] = country_code.upper()
+            except Country.DoesNotExist:
+                raise serializers.ValidationError(f"Country '{country_code}' not found")
+
+        return attrs

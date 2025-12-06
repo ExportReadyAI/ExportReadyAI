@@ -22,6 +22,7 @@ from .views import (
     ExportAnalysisDetailView,
     ExportAnalysisListView,
     ExportAnalysisReanalyzeView,
+    RegulationRecommendationView,
 )
 
 urlpatterns = [
@@ -29,6 +30,7 @@ urlpatterns = [
     path("", ExportAnalysisListView.as_view(), name="export-analysis-list"),
     path("create/", ExportAnalysisCreateView.as_view(), name="export-analysis-create"),
     path("compare/", ExportAnalysisCompareView.as_view(), name="export-analysis-compare"),
+    path("regulation-recommendations/", RegulationRecommendationView.as_view(), name="regulation-recommendations"),
     path("<int:analysis_id>/", ExportAnalysisDetailView.as_view(), name="export-analysis-detail"),
     path("<int:analysis_id>/reanalyze/", ExportAnalysisReanalyzeView.as_view(), name="export-analysis-reanalyze"),
 ]
