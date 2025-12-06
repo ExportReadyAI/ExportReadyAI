@@ -1,0 +1,881 @@
+{
+  "info": {
+    "name": "ExportReady Module 4 - Costings & Pricing (Complete)",
+    "description": "Complete API collection for Module 4: Kalkulator Finansial & Logistik with KolosalAI integration (Claude Sonnet 4.5). Includes authentication, exchange rate management (auto-fetch from API), costing calculations (EXW/FOB/CIF), container optimization, AI pricing recommendations, and PDF export.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register UMKM",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function() {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.collectionVariables.set('user_id', jsonData.data.user.id);",
+                  "  console.log('User registered with ID:', jsonData.data.user.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"umkm@exportready.com\",\n  \"password\": \"password123\",\n  \"full_name\": \"UMKM Test User\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login as UMKM",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.collectionVariables.set('access_token', jsonData.data.tokens.access);",
+                  "  pm.collectionVariables.set('refresh_token', jsonData.data.tokens.refresh);",
+                  "  pm.collectionVariables.set('user_id', jsonData.data.user.id);",
+                  "  console.log('Login successful. Token saved.');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"umkm@exportready.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login as Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.collectionVariables.set('admin_token', jsonData.data.tokens.access);",
+                  "  pm.collectionVariables.set('admin_user_id', jsonData.data.user.id);",
+                  "  console.log('Admin login successful. Token saved.');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@exportready.com\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Has user data', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.data).to.have.property('email');",
+                  "  pm.expect(jsonData.data).to.have.property('role');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "me", ""]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "PBI-BE-M1-01, PBI-BE-M1-02, PBI-BE-M1-03: User registration, login (UMKM & Admin), and authentication"
+    },
+    {
+      "name": "Exchange Rate Management",
+      "item": [
+        {
+          "name": "Get Current Exchange Rate",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Has rate data', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.data).to.have.property('rate');",
+                  "  pm.expect(jsonData.data).to.have.property('source');",
+                  "  pm.expect(jsonData.data).to.have.property('updated_at');",
+                  "  pm.expect(jsonData.data).to.have.property('is_stale');",
+                  "  pm.expect(jsonData.data).to.have.property('auto_fetch_enabled');",
+                  "  pm.expect(jsonData.data.rate).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "// Save rate for calculations",
+                  "if (pm.response.code === 200) {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.collectionVariables.set('exchange_rate', jsonData.data.rate);",
+                  "  console.log('Exchange rate saved:', jsonData.data.rate, 'IDR/USD');",
+                  "  console.log('Source:', jsonData.data.source);",
+                  "  console.log('Is stale:', jsonData.data.is_stale);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/costings/exchange-rate/",
+              "host": ["{{base_url}}"],
+              "path": ["costings", "exchange-rate", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Exchange Rate (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Rate updated', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.data.rate).to.equal(15900);",
+                  "  pm.expect(jsonData.data.source).to.equal('manual');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rate\": 15900\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/costings/exchange-rate/",
+              "host": ["{{base_url}}"],
+              "path": ["costings", "exchange-rate", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Force Refresh Exchange Rate (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Rate refreshed from API', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.data).to.have.property('rate');",
+                  "  pm.expect(jsonData.data.source).to.equal('manual_refresh');",
+                  "  pm.expect(jsonData.message).to.include('refreshed from API');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/costings/exchange-rate/",
+              "host": ["{{base_url}}"],
+              "path": ["costings", "exchange-rate", ""]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "PBI-BE-M4-11, PBI-BE-M4-12: Exchange rate management with auto-fetch from external API (exchangerate-api.com)"
+    },
+    {
+      "name": "Costing Management",
+      "item": [
+        {
+          "name": "Create Costing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function() {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Has costing data', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.data).to.have.property('id');",
+                  "  pm.expect(jsonData.data).to.have.property('recommended_exw_price');",
+                  "  pm.expect(jsonData.data).to.have.property('recommended_fob_price');",
+                  "  pm.expect(jsonData.data).to.have.property('container_20ft_capacity');",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.collectionVariables.set('costing_id', jsonData.data.id);",
+                  "  console.log('Costing created with ID:', jsonData.data.id);",
+                  "  console.log('EXW Price:', jsonData.data.recommended_exw_price, 'USD');",
+                  "  console.log('FOB Price:', jsonData.data.recommended_fob_price, 'USD');",
+                  "  console.log('Container 20ft:', jsonData.data.container_20ft_capacity, 'units');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_id\": {{product_id}},\n  \"cogs_per_unit\": 50000,\n  \"packing_cost\": 5000,\n  \"target_margin_percent\": 30,\n  \"target_country_code\": \"US\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/costings/",
+              "host": ["{{base_url}}"],
+              "path": ["costings", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Costings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Has results array', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.data).to.have.property('results');",
+                  "  pm.expect(jsonData.data.results).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/costings/?page=1&page_size=10",
+              "host": ["{{base_url}}"],
+              "path": ["costings", ""],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Costing Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Has complete costing data', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.data).to.have.property('id');",
+                  "  pm.expect(jsonData.data).to.have.property('product_details');",
+                  "  pm.expect(jsonData.data).to.have.property('recommended_exw_price');",
+                  "  pm.expect(jsonData.data).to.have.property('recommended_fob_price');",
+                  "  pm.expect(jsonData.data).to.have.property('recommended_cif_price');",
+                  "  pm.expect(jsonData.data).to.have.property('container_20ft_capacity');",
+                  "  pm.expect(jsonData.data).to.have.property('container_40ft_capacity');",
+                  "  pm.expect(jsonData.data).to.have.property('ai_pricing_recommendation');",
+                  "  pm.expect(jsonData.data).to.have.property('ai_container_optimization');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/costings/{{costing_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["costings", "{{costing_id}}", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Costing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Costing updated', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.data.cogs_per_unit).to.equal('55000.00');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cogs_per_unit\": 55000,\n  \"packing_cost\": 6000,\n  \"target_margin_percent\": 35,\n  \"target_country_code\": \"JP\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/costings/{{costing_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["costings", "{{costing_id}}", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Costing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/costings/{{costing_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["costings", "{{costing_id}}", ""]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "PBI-BE-M4-01 to PBI-BE-M4-09: Complete costing management with AI calculations (EXW, FOB, CIF) and container optimization"
+    },
+    {
+      "name": "AI Features",
+      "item": [
+        {
+          "name": "Get AI Pricing Recommendation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Has AI recommendation', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.data).to.have.property('ai_pricing_recommendation');",
+                  "  pm.expect(jsonData.data.ai_pricing_recommendation).to.be.a('string');",
+                  "  pm.expect(jsonData.data.ai_pricing_recommendation.length).to.be.greaterThan(100);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/costings/{{costing_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["costings", "{{costing_id}}", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Container Optimization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Has optimization data', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.data).to.have.property('container_20ft_capacity');",
+                  "  pm.expect(jsonData.data).to.have.property('container_40ft_capacity');",
+                  "  pm.expect(jsonData.data).to.have.property('ai_container_optimization');",
+                  "  pm.expect(jsonData.data.container_20ft_capacity).to.be.greaterThan(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/costings/{{costing_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["costings", "{{costing_id}}", ""]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "AI-powered features using KolosalAI (Claude Sonnet 4.5): pricing recommendations with 4-section analysis and container packing optimization"
+    },
+    {
+      "name": "PDF Export",
+      "item": [
+        {
+          "name": "Export Costing to PDF",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Content-Type is PDF', function() {",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/pdf');",
+                  "});",
+                  "",
+                  "pm.test('Has PDF data', function() {",
+                  "  pm.expect(pm.response).to.have.property('stream');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/costings/{{costing_id}}/pdf/",
+              "host": ["{{base_url}}"],
+              "path": ["costings", "{{costing_id}}", "pdf", ""]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "PBI-BE-M4-13: Generate professional PDF costing report with company profile, product details, price breakdown, and container information"
+    },
+    {
+      "name": "Complete Flow Examples",
+      "item": [
+        {
+          "name": "Flow 1: UMKM Create Costing (No Target Country)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function() {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('EXW and FOB calculated', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.data.recommended_exw_price).to.be.greaterThan(0);",
+                  "  pm.expect(jsonData.data.recommended_fob_price).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('CIF is null without target country', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.data.recommended_cif_price).to.be.null;",
+                  "});",
+                  "",
+                  "pm.test('Response message mentions CIF requirement', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.message).to.include('target_country_code');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_id\": {{product_id}},\n  \"cogs_per_unit\": 75000,\n  \"packing_cost\": 8000,\n  \"target_margin_percent\": 25\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/costings/",
+              "host": ["{{base_url}}"],
+              "path": ["costings", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Flow 2: UMKM Create Costing (With Target Country)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function() {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('All prices calculated', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.data.recommended_exw_price).to.be.greaterThan(0);",
+                  "  pm.expect(jsonData.data.recommended_fob_price).to.be.greaterThan(0);",
+                  "  pm.expect(jsonData.data.recommended_cif_price).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('CIF higher than FOB', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  var fob = parseFloat(jsonData.data.recommended_fob_price);",
+                  "  var cif = parseFloat(jsonData.data.recommended_cif_price);",
+                  "  pm.expect(cif).to.be.greaterThan(fob);",
+                  "});",
+                  "",
+                  "pm.test('Has AI recommendations', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.data).to.have.property('ai_pricing_recommendation');",
+                  "  pm.expect(jsonData.data).to.have.property('ai_container_optimization');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_id\": {{product_id}},\n  \"cogs_per_unit\": 75000,\n  \"packing_cost\": 8000,\n  \"target_margin_percent\": 25,\n  \"target_country_code\": \"SG\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/costings/",
+              "host": ["{{base_url}}"],
+              "path": ["costings", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Flow 3: Admin Force Refresh Exchange Rate",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Switch to admin token",
+                  "pm.collectionVariables.set('temp_token', pm.collectionVariables.get('access_token'));",
+                  "pm.collectionVariables.set('access_token', pm.collectionVariables.get('admin_token'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Rate refreshed from API', function() {",
+                  "  var jsonData = pm.response.json();",
+                  "  pm.expect(jsonData.data.source).to.equal('manual_refresh');",
+                  "  pm.expect(jsonData.message).to.include('refreshed from API');",
+                  "  console.log('Fresh rate:', jsonData.data.rate, 'IDR/USD');",
+                  "});",
+                  "",
+                  "// Restore UMKM token",
+                  "pm.collectionVariables.set('access_token', pm.collectionVariables.get('temp_token'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/costings/exchange-rate/",
+              "host": ["{{base_url}}"],
+              "path": ["costings", "exchange-rate", ""]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Complete workflow examples demonstrating different scenarios"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Initialize base_url if not set",
+          "if (!pm.collectionVariables.get('base_url')) {",
+          "  pm.collectionVariables.set('base_url', 'http://localhost:8000/api/v1');",
+          "}",
+          "",
+          "// Log current request",
+          "console.log('Request:', pm.request.method, pm.request.url.toString());"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Log response status",
+          "console.log('Response:', pm.response.code, pm.response.status);",
+          "",
+          "// Parse JSON response if available",
+          "try {",
+          "  var jsonData = pm.response.json();",
+          "  if (jsonData.message) {",
+          "    console.log('Message:', jsonData.message);",
+          "  }",
+          "} catch(e) {",
+          "  // Not JSON response",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "admin_user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "product_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "costing_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "exchange_rate",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "temp_token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

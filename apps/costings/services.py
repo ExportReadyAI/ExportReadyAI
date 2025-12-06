@@ -60,14 +60,82 @@ class PriceCalculatorService:
     def get_exchange_rate():
         """
         PBI-BE-M4-10: Get current IDR-USD exchange rate
+        
+        Priority:
+        1. Database (manual/cached)
+        2. Auto-fetch from external API if stale (>24h)
+        3. Fallback rate
         """
         try:
             rate = ExchangeRate.objects.latest("updated_at")
+            
+            # Check if rate is stale (older than 24 hours)
+            from django.utils import timezone
+            from datetime import timedelta
+            
+            if timezone.now() - rate.updated_at > timedelta(hours=24):
+                logger.info("Exchange rate is stale (>24h), attempting auto-fetch...")
+                fresh_rate = PriceCalculatorService.fetch_live_exchange_rate()
+                if fresh_rate:
+                    rate.rate = fresh_rate
+                    rate.source = "auto_fetched"
+                    rate.save()
+                    logger.info(f"Exchange rate updated automatically: {fresh_rate}")
+            
             return rate.rate
         except ExchangeRate.DoesNotExist:
+            # Try to fetch fresh rate
+            logger.warning("No exchange rate found, attempting to fetch from API...")
+            fresh_rate = PriceCalculatorService.fetch_live_exchange_rate()
+            
+            if fresh_rate:
+                ExchangeRate.objects.create(rate=fresh_rate, source="auto_fetched")
+                return fresh_rate
+            
             # Fallback rate
-            logger.warning("No exchange rate found, using fallback rate 15800")
+            logger.warning("Failed to fetch exchange rate, using fallback rate 15800")
             return Decimal("15800.00")
+    
+    @staticmethod
+    def fetch_live_exchange_rate():
+        """
+        Fetch live IDR/USD exchange rate from external API
+        
+        Uses exchangerate-api.com (free tier: 1500 requests/month)
+        Fallback to currencyapi.com if primary fails
+        
+        Returns:
+            Decimal: Current IDR/USD rate, or None if failed
+        """
+        import requests
+        from decimal import Decimal
+        
+        # Option 1: exchangerate-api.com (no API key needed for basic)
+        try:
+            response = requests.get(
+                "https://api.exchangerate-api.com/v4/latest/USD",
+                timeout=5
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                idr_rate = data.get("rates", {}).get("IDR")
+                
+                if idr_rate:
+                    logger.info(f"Fetched live rate from exchangerate-api: {idr_rate}")
+                    return Decimal(str(idr_rate))
+        except Exception as e:
+            logger.warning(f"Failed to fetch from exchangerate-api: {e}")
+        
+        # Option 2: Fallback to another API (could add more here)
+        try:
+            # Example: fixer.io, currencyapi.com, etc (requires API key)
+            # For now, just log and return None
+            logger.warning("All exchange rate APIs failed")
+        except Exception as e:
+            logger.warning(f"Fallback API failed: {e}")
+        
+        return None
     
     @staticmethod
     def calculate_exw(cogs_per_unit_idr, packing_cost_idr, target_margin_percent):

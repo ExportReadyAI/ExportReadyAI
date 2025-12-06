@@ -138,6 +138,9 @@ class ExchangeRate(models.Model):
         default="manual",
         choices=[
             ("manual", "Manual Update by Admin"),
+            ("auto_fetched", "Auto-fetched from API"),
+            ("manual_refresh", "Manual Refresh from API"),
+            ("fallback", "Fallback Default Rate"),
             ("api", "External API"),
             ("bank", "Bank Source"),
         ],

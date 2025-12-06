@@ -305,34 +305,75 @@ class ExchangeRateView(APIView):
     PBI-BE-M4-11, PBI-BE-M4-12
     
     GET: Get current exchange rate
-    - Response: {rate, source, updated_at}
+    - Auto-fetches from API if stale (>24h)
+    - Response: {rate, source, updated_at, is_stale}
     
-    PUT: Update exchange rate (Admin only)
+    PUT: Update exchange rate manually (Admin only)
     - Body: rate (decimal)
     - Update stored rate
+    
+    POST: Force refresh from external API (Admin only)
+    - Fetches latest rate immediately
     """
     
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        """PBI-BE-M4-11: Return current exchange rate IDR-USD"""
+        """PBI-BE-M4-11: Return current exchange rate IDR-USD with auto-fetch"""
         try:
+            from django.utils import timezone
+            from datetime import timedelta
+            
             rate = ExchangeRate.objects.latest("updated_at")
+            is_stale = timezone.now() - rate.updated_at > timedelta(hours=24)
+            
+            # Auto-fetch if stale
+            if is_stale:
+                logger.info("Exchange rate is stale, triggering auto-fetch...")
+                from .services import PriceCalculatorService
+                fresh_rate = PriceCalculatorService.fetch_live_exchange_rate()
+                
+                if fresh_rate:
+                    rate.rate = fresh_rate
+                    rate.source = "auto_fetched"
+                    rate.save()
+                    is_stale = False
+            
             serializer = ExchangeRateSerializer(rate)
+            data = serializer.data
+            data["is_stale"] = is_stale
+            data["auto_fetch_enabled"] = True
+            
             return success_response(
-                data=serializer.data,
-                message="Current exchange rate retrieved successfully"
+                data=data,
+                message="Current exchange rate retrieved (auto-updated if needed)"
             )
         except ExchangeRate.DoesNotExist:
-            # Create default if not exists
+            # Try to fetch fresh rate
+            logger.info("No exchange rate found, fetching from API...")
+            from .services import PriceCalculatorService
+            fresh_rate = PriceCalculatorService.fetch_live_exchange_rate()
+            
+            if fresh_rate:
+                rate = ExchangeRate.objects.create(
+                    rate=fresh_rate,
+                    source="auto_fetched"
+                )
+                serializer = ExchangeRateSerializer(rate)
+                return success_response(
+                    data=serializer.data,
+                    message="Exchange rate fetched from external API"
+                )
+            
+            # Fallback
             default_rate = ExchangeRate.objects.create(
                 rate=Decimal("15800.00"),
-                source="default_bootstrap"
+                source="fallback"
             )
             serializer = ExchangeRateSerializer(default_rate)
             return success_response(
                 data=serializer.data,
-                message="Default exchange rate initialized"
+                message="Using fallback exchange rate (API unavailable)"
             )
     
     def put(self, request):
@@ -362,6 +403,41 @@ class ExchangeRateView(APIView):
             data=result_serializer.data,
             message="Exchange rate updated successfully"
         )
+    
+    def post(self, request):
+        """Force refresh exchange rate from external API (Admin only)"""
+        if request.user.role != UserRole.ADMIN:
+            raise ForbiddenException("Only admins can force refresh exchange rate")
+        
+        from .services import PriceCalculatorService
+        
+        fresh_rate = PriceCalculatorService.fetch_live_exchange_rate()
+        
+        if fresh_rate:
+            # Update existing or create new
+            rate, created = ExchangeRate.objects.get_or_create(
+                id=1,
+                defaults={
+                    "rate": fresh_rate,
+                    "source": "manual_refresh"
+                }
+            )
+            
+            if not created:
+                rate.rate = fresh_rate
+                rate.source = "manual_refresh"
+                rate.save()
+            
+            serializer = ExchangeRateSerializer(rate)
+            return success_response(
+                data=serializer.data,
+                message=f"Exchange rate refreshed from API: 1 USD = {fresh_rate} IDR"
+            )
+        else:
+            return error_response(
+                message="Failed to fetch exchange rate from API. Please try again later.",
+                status_code=503
+            )
 
 
 class CostingPDFExportView(APIView):
