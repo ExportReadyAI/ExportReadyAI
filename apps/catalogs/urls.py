@@ -9,6 +9,11 @@ Endpoints:
 - GET/POST   /catalogs/:id/variants/             - List/Add variants
 - PUT/DELETE /catalogs/:id/variants/:variant_id/ - Update/Delete variant
 
+AI Features:
+- POST /catalogs/:id/ai/description/             - Generate international descriptions
+- POST /catalogs/:id/ai/market-intelligence/     - Get market intelligence
+- POST /catalogs/:id/ai/pricing/                 - Calculate pricing
+
 Public (no auth):
 - GET /catalogs/public/                          - List published catalogs
 - GET /catalogs/public/:id/                      - Published catalog detail
@@ -25,6 +30,10 @@ from .views import (
     CatalogVariantDetailView,
     PublicCatalogListView,
     PublicCatalogDetailView,
+    # AI Views
+    CatalogAIDescriptionView,
+    CatalogMarketIntelligenceView,
+    CatalogPricingView,
 )
 
 app_name = "catalogs"
@@ -56,6 +65,23 @@ urlpatterns = [
         "<int:catalog_id>/variants/<int:variant_id>/",
         CatalogVariantDetailView.as_view(),
         name="catalog-variant-detail",
+    ),
+
+    # AI Features
+    path(
+        "<int:catalog_id>/ai/description/",
+        CatalogAIDescriptionView.as_view(),
+        name="catalog-ai-description",
+    ),
+    path(
+        "<int:catalog_id>/ai/market-intelligence/",
+        CatalogMarketIntelligenceView.as_view(),
+        name="catalog-market-intelligence",
+    ),
+    path(
+        "<int:catalog_id>/ai/pricing/",
+        CatalogPricingView.as_view(),
+        name="catalog-ai-pricing",
     ),
 
     # Public catalog views (no auth required)

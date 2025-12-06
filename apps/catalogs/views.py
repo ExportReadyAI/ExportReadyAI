@@ -464,3 +464,340 @@ class PublicCatalogDetailView(APIView):
         )
         serializer = PublicCatalogSerializer(catalog)
         return Response({"success": True, "data": serializer.data})
+
+
+# ============================================================
+# AI FEATURE VIEWS
+# ============================================================
+
+
+class CatalogAIDescriptionView(APIView):
+    """
+    POST: Generate international product descriptions using AI
+
+    AI 1: International Product Description Generator
+    - Export Buyer Description (English B2B)
+    - Technical Specification Sheet
+    - Material/Food Safety Sheet
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, catalog_id):
+        """Generate AI descriptions for a catalog"""
+        # Get catalog with ownership check
+        catalog = get_object_or_404(
+            ProductCatalog.objects.select_related("product"),
+            id=catalog_id,
+            product__business__user=request.user,
+        )
+
+        product = catalog.product
+
+        # Check if product is food
+        is_food = request.data.get("is_food_product", False)
+
+        try:
+            from .services import get_catalog_ai_service
+            ai_service = get_catalog_ai_service()
+
+            result = ai_service.generate_international_description(
+                product_name=product.name_local,
+                description_local=product.description_local or "",
+                material_composition=product.material_composition or "",
+                dimensions=product.dimensions_l_w_h,
+                weight_net=float(product.weight_net) if product.weight_net else None,
+                weight_gross=float(product.weight_gross) if product.weight_gross else None,
+                category=str(product.category_id) if product.category_id else "",
+                is_food_product=is_food,
+            )
+
+            if result.get("success"):
+                return Response({
+                    "success": True,
+                    "message": "International descriptions generated successfully",
+                    "data": result["data"]
+                })
+            else:
+                return Response({
+                    "success": False,
+                    "message": result.get("error", "Failed to generate descriptions")
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except Exception as e:
+            logger.error(f"Error generating AI descriptions: {e}", exc_info=True)
+            return Response({
+                "success": False,
+                "message": f"Error: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CatalogMarketIntelligenceView(APIView):
+    """
+    GET: Get existing market intelligence
+    POST: Generate market intelligence for a catalog product (only if not exists)
+
+    AI 2: Market Intelligence
+    - Recommended target countries
+    - Countries to avoid
+    - Market trends and insights
+
+    Note: Each catalog can only have ONE market intelligence result.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, catalog_id):
+        """Get existing market intelligence for a catalog"""
+        from .models import CatalogMarketIntelligence
+
+        catalog = get_object_or_404(
+            ProductCatalog,
+            id=catalog_id,
+            product__business__user=request.user,
+        )
+
+        try:
+            mi = catalog.market_intelligence
+            return Response({
+                "success": True,
+                "message": "Market intelligence retrieved",
+                "data": {
+                    "id": mi.id,
+                    "recommended_countries": mi.recommended_countries,
+                    "countries_to_avoid": mi.countries_to_avoid,
+                    "market_trends": mi.market_trends,
+                    "competitive_landscape": mi.competitive_landscape,
+                    "growth_opportunities": mi.growth_opportunities,
+                    "risks_and_challenges": mi.risks_and_challenges,
+                    "overall_recommendation": mi.overall_recommendation,
+                    "generated_at": mi.generated_at,
+                }
+            })
+        except CatalogMarketIntelligence.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "Market intelligence not yet generated for this catalog. Use POST to generate."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    def post(self, request, catalog_id):
+        """Generate market intelligence for a catalog (only if not exists)"""
+        from .models import CatalogMarketIntelligence
+
+        # Get catalog with ownership check
+        catalog = get_object_or_404(
+            ProductCatalog.objects.select_related("product__business"),
+            id=catalog_id,
+            product__business__user=request.user,
+        )
+
+        # Check if market intelligence already exists
+        if hasattr(catalog, 'market_intelligence'):
+            return Response({
+                "success": False,
+                "message": "Market intelligence already exists for this catalog. Each catalog can only have one market intelligence result.",
+                "existing_data": {
+                    "id": catalog.market_intelligence.id,
+                    "generated_at": catalog.market_intelligence.generated_at,
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        product = catalog.product
+        business = product.business
+
+        try:
+            from .services import get_catalog_ai_service
+            ai_service = get_catalog_ai_service()
+
+            result = ai_service.get_market_intelligence(
+                product_name=product.name_local,
+                description=catalog.marketing_description or product.description_local or "",
+                material_composition=product.material_composition or "",
+                category=str(product.category_id) if product.category_id else "",
+                current_price_usd=float(catalog.base_price_exw) if catalog.base_price_exw else None,
+                production_capacity=business.production_capacity_per_month if business else None,
+            )
+
+            if result.get("success"):
+                data = result["data"]
+
+                # Save to database
+                mi = CatalogMarketIntelligence.objects.create(
+                    catalog=catalog,
+                    recommended_countries=data.get("recommended_countries", []),
+                    countries_to_avoid=data.get("countries_to_avoid", []),
+                    market_trends=data.get("market_trends", []),
+                    competitive_landscape=data.get("competitive_landscape", ""),
+                    growth_opportunities=data.get("growth_opportunities", []),
+                    risks_and_challenges=data.get("risks_and_challenges", []),
+                    overall_recommendation=data.get("overall_recommendation", ""),
+                )
+
+                return Response({
+                    "success": True,
+                    "message": "Market intelligence generated and saved successfully",
+                    "data": {
+                        "id": mi.id,
+                        **data,
+                        "generated_at": mi.generated_at,
+                    }
+                }, status=status.HTTP_201_CREATED)
+            else:
+                return Response({
+                    "success": False,
+                    "message": result.get("error", "Failed to generate market intelligence")
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except Exception as e:
+            logger.error(f"Error getting market intelligence: {e}", exc_info=True)
+            return Response({
+                "success": False,
+                "message": f"Error: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CatalogPricingView(APIView):
+    """
+    GET: Get existing pricing result
+    POST: Generate pricing recommendations for catalog (only if not exists)
+
+    AI 3: Catalog Pricing (reuses costing module)
+    - EXW/FOB/CIF pricing
+    - AI pricing insights
+
+    Note: Each catalog can only have ONE pricing result.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, catalog_id):
+        """Get existing pricing result for a catalog"""
+        from .models import CatalogPricingResult
+
+        catalog = get_object_or_404(
+            ProductCatalog,
+            id=catalog_id,
+            product__business__user=request.user,
+        )
+
+        try:
+            pr = catalog.pricing_result
+            return Response({
+                "success": True,
+                "message": "Pricing result retrieved",
+                "data": {
+                    "id": pr.id,
+                    "cogs_per_unit_idr": float(pr.cogs_per_unit_idr),
+                    "target_margin_percent": float(pr.target_margin_percent),
+                    "target_country_code": pr.target_country_code,
+                    "exchange_rate_used": float(pr.exchange_rate_used),
+                    "exw_price_usd": float(pr.exw_price_usd),
+                    "fob_price_usd": float(pr.fob_price_usd),
+                    "cif_price_usd": float(pr.cif_price_usd) if pr.cif_price_usd else None,
+                    "pricing_insight": pr.pricing_insight,
+                    "pricing_breakdown": pr.pricing_breakdown,
+                    "generated_at": pr.generated_at,
+                }
+            })
+        except CatalogPricingResult.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "Pricing not yet generated for this catalog. Use POST to generate."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    def post(self, request, catalog_id):
+        """Generate pricing for a catalog (only if not exists)"""
+        from decimal import Decimal
+        from .models import CatalogPricingResult
+
+        # Get catalog with ownership check
+        catalog = get_object_or_404(
+            ProductCatalog.objects.select_related("product"),
+            id=catalog_id,
+            product__business__user=request.user,
+        )
+
+        # Check if pricing already exists
+        if hasattr(catalog, 'pricing_result'):
+            return Response({
+                "success": False,
+                "message": "Pricing result already exists for this catalog. Each catalog can only have one pricing result.",
+                "existing_data": {
+                    "id": catalog.pricing_result.id,
+                    "exw_price_usd": float(catalog.pricing_result.exw_price_usd),
+                    "generated_at": catalog.pricing_result.generated_at,
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        product = catalog.product
+
+        # Get pricing inputs from request
+        cogs_per_unit = request.data.get("cogs_per_unit")
+        target_margin = request.data.get("target_margin_percent", 30)
+        target_country = request.data.get("target_country_code")
+
+        if not cogs_per_unit:
+            return Response({
+                "success": False,
+                "message": "cogs_per_unit is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            from .services import get_catalog_ai_service
+            ai_service = get_catalog_ai_service()
+
+            result = ai_service.generate_catalog_pricing(
+                product_name=product.name_local,
+                cogs_per_unit=Decimal(str(cogs_per_unit)),
+                target_margin_percent=Decimal(str(target_margin)),
+                material_composition=product.material_composition or "",
+                target_country_code=target_country,
+                dimensions=product.dimensions_l_w_h,
+                weight_gross=float(product.weight_gross) if product.weight_gross else None,
+            )
+
+            if result.get("success"):
+                data = result["data"]
+
+                # Save to database
+                pr = CatalogPricingResult.objects.create(
+                    catalog=catalog,
+                    cogs_per_unit_idr=Decimal(str(data["cogs_per_unit_idr"])),
+                    target_margin_percent=Decimal(str(data["target_margin_percent"])),
+                    target_country_code=target_country or "",
+                    exchange_rate_used=Decimal(str(data["exchange_rate_used"])),
+                    exw_price_usd=Decimal(str(data["exw_price_usd"])),
+                    fob_price_usd=Decimal(str(data["fob_price_usd"])),
+                    cif_price_usd=Decimal(str(data["cif_price_usd"])) if data.get("cif_price_usd") else None,
+                    pricing_insight=data.get("pricing_insight", ""),
+                    pricing_breakdown=data.get("pricing_breakdown", {}),
+                )
+
+                # Update catalog prices
+                catalog.base_price_exw = pr.exw_price_usd
+                catalog.base_price_fob = pr.fob_price_usd
+                if pr.cif_price_usd:
+                    catalog.base_price_cif = pr.cif_price_usd
+                catalog.save()
+
+                return Response({
+                    "success": True,
+                    "message": "Pricing calculated and saved successfully. Catalog prices updated.",
+                    "data": {
+                        "id": pr.id,
+                        **data,
+                        "generated_at": pr.generated_at,
+                    }
+                }, status=status.HTTP_201_CREATED)
+            else:
+                return Response({
+                    "success": False,
+                    "message": result.get("error", "Failed to calculate pricing")
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except Exception as e:
+            logger.error(f"Error generating pricing: {e}", exc_info=True)
+            return Response({
+                "success": False,
+                "message": f"Error: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
