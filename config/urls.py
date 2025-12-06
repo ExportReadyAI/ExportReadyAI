@@ -36,6 +36,8 @@ api_v1_patterns = [
     path("hs-codes/", include(hs_code_urlpatterns)),
     path("admin/countries/", include(admin_country_urlpatterns)),
     path("admin/regulations/", include(admin_regulation_urlpatterns)),
+    # Product Catalogs
+    path("catalogs/", include("apps.catalogs.urls")),
 ]
 
 urlpatterns = [
