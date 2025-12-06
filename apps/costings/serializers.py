@@ -19,6 +19,12 @@ class CostingSerializer(serializers.ModelSerializer):
     
     product_name = serializers.CharField(source="product.name_local", read_only=True)
     product_id = serializers.IntegerField(write_only=True)
+    target_country_code = serializers.CharField(
+        write_only=True, 
+        required=False, 
+        allow_null=True,
+        help_text="2-letter country code (e.g., US, JP, SG) for CIF calculation. Optional."
+    )
     
     class Meta:
         model = Costing
@@ -29,6 +35,7 @@ class CostingSerializer(serializers.ModelSerializer):
             "cogs_per_unit",
             "packing_cost",
             "target_margin_percent",
+            "target_country_code",
             "recommended_exw_price",
             "recommended_fob_price",
             "recommended_cif_price",
@@ -67,6 +74,18 @@ class CostingSerializer(serializers.ModelSerializer):
         if value < 0 or value > 100:
             raise serializers.ValidationError("Margin must be between 0 and 100%")
         return value
+    
+    def create(self, validated_data):
+        """
+        Custom create method to handle write-only fields like target_country_code.
+        These fields are removed from validated_data before model creation.
+        """
+        # Remove write-only fields that don't exist in the model
+        validated_data.pop('target_country_code', None)
+        validated_data.pop('product_id', None)
+        
+        # Create instance with remaining validated data
+        return super().create(validated_data)
 
 
 class UpdateCostingSerializer(serializers.ModelSerializer):
