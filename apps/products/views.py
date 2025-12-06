@@ -176,23 +176,25 @@ class EnrichProductView(APIView):
                 business_id=product.business_id,
             )
 
-            # Update enrichment record
+            # Update enrichment record (hanya HS Code dan SKU)
             enrichment.hs_code_recommendation = enrichment_data["hs_code_recommendation"]
             enrichment.sku_generated = enrichment_data["sku_generated"]
-            enrichment.name_english_b2b = enrichment_data["name_english_b2b"]
-            enrichment.description_english_b2b = enrichment_data["description_english_b2b"]
-            enrichment.marketing_highlights = enrichment_data["marketing_highlights"]
             enrichment.last_updated_ai = timezone.now()
             enrichment.save()
 
             logger.info(f"AI enrichment completed for product {product_id}")
+            logger.info(f"HS Code: {enrichment_data['hs_code_recommendation']} (from_ai: {enrichment_data['hs_code_from_ai']})")
 
             serializer = ProductEnrichmentSerializer(enrichment)
+            response_data = serializer.data
+            # Add status apakah HS code dari AI atau fallback
+            response_data["hs_code_from_ai"] = enrichment_data["hs_code_from_ai"]
+            
             return Response(
                 {
                     "success": True,
                     "message": "Product enriched successfully with AI",
-                    "data": serializer.data
+                    "data": response_data
                 },
                 status=status.HTTP_200_OK
             )

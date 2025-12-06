@@ -4,17 +4,18 @@ from .models import Product, ProductEnrichment
 
 
 # PBI-BE-M2-09, M2-10: ProductEnrichment Serializer
-# Used for returning enriched product data
+# Used for returning enriched product data (hanya HS Code dan SKU)
 class ProductEnrichmentSerializer(serializers.ModelSerializer):
+    # Add custom field untuk status AI (tidak disimpan di database, hanya di response)
+    hs_code_from_ai = serializers.BooleanField(read_only=True, required=False)
+    
     class Meta:
         model = ProductEnrichment
         fields = [
             "hs_code_recommendation",
             "sku_generated",
-            "name_english_b2b",
-            "description_english_b2b",
-            "marketing_highlights",
             "last_updated_ai",
+            "hs_code_from_ai",  # Status apakah HS code dari AI atau fallback
         ]
 
 
