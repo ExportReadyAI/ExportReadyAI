@@ -36,6 +36,10 @@ api_v1_patterns = [
     path("hs-codes/", include(hs_code_urlpatterns)),
     path("admin/countries/", include(admin_country_urlpatterns)),
     path("admin/regulations/", include(admin_regulation_urlpatterns)),
+    # Module 6: Market Connect & Logistics
+    path("buyers/", include("apps.buyer_requests.urls")),
+    path("buyer-requests/", include("apps.buyer_requests.legacy_urls")),  # Backward compatibility
+    path("forwarders/", include("apps.forwarders.urls")),
 ]
 
 urlpatterns = [
