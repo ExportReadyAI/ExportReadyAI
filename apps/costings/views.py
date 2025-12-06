@@ -108,14 +108,16 @@ class CostingListCreateView(ListCreateAPIView):
                 target_country_code=target_country
             )
             
-            # Store AI recommendation separately (not in model)
+            # Store AI recommendations separately (not in model)
             ai_recommendation = costing_result.pop("ai_pricing_recommendation", None)
+            ai_container_opt = costing_result.pop("ai_container_optimization", None)
             
             # Save costing with calculated values
             serializer.save(product=product, **costing_result)
             
             # Store for response
             self.ai_pricing_recommendation = ai_recommendation
+            self.ai_container_optimization = ai_container_opt
             
             logger.info(f"Costing created: product={product_id}, EXW=${costing_result['recommended_exw_price']}")
         except Exception as e:
@@ -130,9 +132,12 @@ class CostingListCreateView(ListCreateAPIView):
         
         response_data = serializer.data
         
-        # Include AI recommendation in response
+        # Include AI recommendations in response (separate from model data)
         if hasattr(self, "ai_pricing_recommendation") and self.ai_pricing_recommendation:
             response_data["ai_pricing_recommendation"] = self.ai_pricing_recommendation
+        
+        if hasattr(self, "ai_container_optimization") and self.ai_container_optimization:
+            response_data["ai_container_optimization"] = self.ai_container_optimization
         
         # Build informative message
         exw = response_data.get("recommended_exw_price")
@@ -262,8 +267,9 @@ class CostingDetailView(RetrieveUpdateDestroyAPIView):
                 target_country_code=None
             )
             
-            # Extract AI recommendation
+            # Extract AI recommendations
             ai_recommendation = costing_result.pop("ai_pricing_recommendation", None)
+            ai_container_opt = costing_result.pop("ai_container_optimization", None)
             
             # Update calculated fields
             costing.recommended_exw_price = costing_result["recommended_exw_price"]
@@ -276,9 +282,11 @@ class CostingDetailView(RetrieveUpdateDestroyAPIView):
             result_serializer = CostingSerializer(costing)
             response_data = result_serializer.data
             
-            # Include AI recommendation
+            # Include AI recommendations
             if ai_recommendation:
                 response_data["ai_pricing_recommendation"] = ai_recommendation
+            if ai_container_opt:
+                response_data["ai_container_optimization"] = ai_container_opt
             
             return success_response(
                 data=response_data,

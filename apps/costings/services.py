@@ -470,11 +470,12 @@ Expertise: container optimization, packaging efficiency, freight cost reduction.
 Berikan saran yang realistis dan mudah diimplementasikan UMKM."""
             
             suggestions = ai_service._call_ai(prompt, system_prompt)
-            return f" | AI Optimization: {suggestions[:200]}..." if len(suggestions) > 200 else f" | AI Optimization: {suggestions}"
+            # Return clean AI text without prefix
+            return suggestions
             
         except Exception as e:
             logger.warning(f"AI container optimization unavailable: {e}")
-            return ""
+            return None
 
 
 class CostingService:
@@ -540,10 +541,8 @@ class CostingService:
                 weight_per_unit=weight
             )
             
-            # Combine optimization notes
+            # Keep optimization notes clean (without AI text)
             optimization_notes = container_result["notes"]
-            if ai_container_suggestions:
-                optimization_notes += ai_container_suggestions
             
             return {
                 "recommended_exw_price": exw_usd,
@@ -551,6 +550,7 @@ class CostingService:
                 "recommended_cif_price": cif_usd,
                 "container_20ft_capacity": container_result["capacity"],
                 "optimization_notes": optimization_notes,
+                "ai_container_optimization": ai_container_suggestions,  # Separate field for FE
                 "ai_pricing_recommendation": ai_recommendation,  # Enhanced with more fields
             }
         except Exception as e:
