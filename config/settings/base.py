@@ -27,6 +27,10 @@ environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env("SECRET_KEY")
 
+# Admin Registration Code (for first-time admin creation)
+# Set this in .env to allow admin registration without an existing admin token
+ADMIN_REGISTRATION_CODE = env("ADMIN_REGISTRATION_CODE", default="")
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env("DEBUG")
 
@@ -53,6 +57,10 @@ LOCAL_APPS = [
     "apps.users",
     "apps.authentication",
     "apps.business_profiles",
+    "apps.products",
+    "apps.costings",
+    "apps.export_analysis",
+    "apps.master_data",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -243,4 +251,11 @@ LOGGING = {
         },
     },
 }
+
+# ============================================================================
+# Kolosal AI Configuration
+# ============================================================================
+KOLOSAL_API_KEY = env("KOLOSAL_API_KEY", default="")
+KOLOSAL_BASE_URL = env("KOLOSAL_BASE_URL", default="https://api.kolosal.ai/v1")
+KOLOSAL_MODEL = env("KOLOSAL_MODEL", default="Claude Sonnet 4.5")
 

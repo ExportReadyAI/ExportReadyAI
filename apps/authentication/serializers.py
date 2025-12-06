@@ -69,6 +69,55 @@ class RegisterSerializer(serializers.Serializer):
         return user
 
 
+class RegisterAdminSerializer(serializers.Serializer):
+    """
+    Serializer for admin registration.
+
+    Can be used in two ways:
+    1. With admin JWT token (IsAdmin permission)
+    2. With admin_code (bootstrap - no token needed)
+
+    Fields:
+    - email, password, full_name, is_superuser (optional boolean)
+    - admin_code (optional - for bootstrap without existing admin)
+    """
+
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(write_only=True, required=True, min_length=8)
+    full_name = serializers.CharField(required=True, max_length=255)
+    is_superuser = serializers.BooleanField(required=False, default=False)
+    admin_code = serializers.CharField(write_only=True, required=False, allow_blank=True)
+
+    def validate_email(self, value):
+        email = value.lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise serializers.ValidationError("This email is already registered")
+        return email
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
+    def create(self, validated_data):
+        # Force role to ADMIN and set staff flag
+        extra = {
+            "role": UserRole.ADMIN,
+            "is_staff": True,
+        }
+        # Allow creating superusers when requested by an Admin
+        if validated_data.get("is_superuser"):
+            extra["is_superuser"] = True
+
+        user = User.objects.create_user(
+            email=validated_data["email"],
+            password=validated_data["password"],
+            full_name=validated_data["full_name"],
+            **extra,
+        )
+
+        return user
+
+
 class LoginSerializer(serializers.Serializer):
     """
     Serializer for user login.

@@ -2,8 +2,10 @@
 User Views for ExportReady.AI
 
 Implements:
-- PBI-BE-M1-08: GET /users (Admin only)
-- PBI-BE-M1-09: DELETE /users/:id
+- PBI-BE-M1-08: GET /users (Admin only) - List all users with pagination
+- PBI-BE-M1-09: DELETE /users/:id - Delete user account
+
+All acceptance criteria for these PBIs are implemented in this module.
 """
 
 from django.db import transaction
@@ -25,13 +27,13 @@ from .serializers import UserListSerializer
 class UserListView(APIView):
     """
     API endpoint for listing users (Admin only).
-    
-    PBI-BE-M1-08:
-    - Return list of all users with pagination
-    - Query params: page, limit, role, search
-    - Search by email or full_name (LIKE query)
-    - Response: array of users with total count
-    - Response does not include password_hash
+
+    # PBI-BE-M1-08: GET /users (Admin only)
+    # - Return daftar semua user dengan pagination
+    # - Query params: page, limit, role, search
+    # - Search by email atau full_name (LIKE query)
+    # - Response: array of users dengan total count
+    # - Response tidak include password_hash
     """
 
     permission_classes = [IsAuthenticated, IsAdmin]
@@ -79,12 +81,12 @@ class UserListView(APIView):
 class UserDeleteView(APIView):
     """
     API endpoint for deleting a user account.
-    
-    PBI-BE-M1-09:
-    - UMKM can only delete their own account
-    - Cascade delete: BusinessProfile, Product, ProductEnrichment, ExportAnalysis, Costing
-    - Response success: 200 OK with message
-    - Response error: 403 Forbidden if not own account
+
+    # PBI-BE-M1-09: DELETE /users/:id
+    # - UMKM hanya bisa delete akun sendiri
+    # - Cascade delete: BusinessProfile, Product, ProductEnrichment, ExportAnalysis, Costing
+    # - Response success: 200 OK dengan message
+    # - Response error: 403 Forbidden jika bukan akun sendiri
     """
 
     permission_classes = [IsAuthenticated, IsAdminOrUMKM]

@@ -1,0 +1,434 @@
+{
+	"info": {
+		"_postman_id": "module5-master-data",
+		"name": "ExportReady.AI - Module 5: Master Data (Admin)",
+		"description": "Admin-only endpoints for managing master data including HS Codes, Countries, and Regulations.\n\n## Authentication\nAll endpoints require Admin role. Use the login endpoint first to get a JWT token.\n\n## PBI Coverage\n- PBI-BE-M5-01 to M5-05: HS Code CRUD & Import\n- PBI-BE-M5-06 to M5-08: Country Admin CRUD\n- PBI-BE-M5-09 to M5-13: Regulation Admin CRUD & Import",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "admin_token",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Login as Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data.tokens) {",
+									"    pm.collectionVariables.set('admin_token', jsonData.data.tokens.access);",
+									"    console.log('Admin token saved!');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin@exportready.ai\",\n    \"password\": \"admin123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login", ""]
+						},
+						"description": "Login as admin to get JWT token. Token is automatically saved to collection variables."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "HS Codes",
+			"item": [
+				{
+					"name": "PBI-M5-01: List HS Codes",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/hs-codes/?page=1&limit=20",
+							"host": ["{{base_url}}"],
+							"path": ["hs-codes", ""],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "level",
+									"value": "6",
+									"disabled": true
+								}
+							]
+						},
+						"description": "List all HS codes with pagination and optional filters.\n\n**Query Parameters:**\n- `page`: Page number (default: 1)\n- `limit`: Items per page (default: 20)\n- `search`: Search in hs_code and description\n- `level`: Filter by level (2, 4, or 6)"
+					},
+					"response": []
+				},
+				{
+					"name": "PBI-M5-01: Get HS Code Detail",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/hs-codes/0901/",
+							"host": ["{{base_url}}"],
+							"path": ["hs-codes", "0901", ""]
+						},
+						"description": "Get detailed information about a specific HS code including parent and children relationships."
+					},
+					"response": []
+				},
+				{
+					"name": "PBI-M5-02: Create HS Code",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"hs_code\": \"123456\",\n    \"description_en\": \"Test Product Description\",\n    \"description_id\": \"Deskripsi Produk Test\",\n    \"keywords\": [\"test\", \"product\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/hs-codes/create/",
+							"host": ["{{base_url}}"],
+							"path": ["hs-codes", "create", ""]
+						},
+						"description": "Create a new HS code.\n\n**Body:**\n- `hs_code`: 2-8 digit code (required)\n- `description_en`: English description (required)\n- `description_id`: Indonesian description (optional)\n- `keywords`: Array of keywords (optional)\n\n**Auto-calculated:**\n- `level`: Based on code length (2, 4, or 6)\n- `hs_chapter`, `hs_heading`, `hs_subheading`"
+					},
+					"response": []
+				},
+				{
+					"name": "PBI-M5-03: Update HS Code",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"Updated Product Description\",\n    \"description_id\": \"Deskripsi Produk Diperbarui\",\n    \"keywords\": [\"updated\", \"product\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/hs-codes/123456/update/",
+							"host": ["{{base_url}}"],
+							"path": ["hs-codes", "123456", "update", ""]
+						},
+						"description": "Update an existing HS code.\n\n**Note:** hs_code cannot be changed."
+					},
+					"response": []
+				},
+				{
+					"name": "PBI-M5-04: Delete HS Code",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/hs-codes/123456/delete/",
+							"host": ["{{base_url}}"],
+							"path": ["hs-codes", "123456", "delete", ""]
+						},
+						"description": "Delete an HS code."
+					},
+					"response": []
+				},
+				{
+					"name": "PBI-M5-05: Import HS Codes (CSV)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": ""
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/hs-codes/import/",
+							"host": ["{{base_url}}"],
+							"path": ["hs-codes", "import", ""]
+						},
+						"description": "Bulk import HS codes from CSV file.\n\n**CSV Format:**\n```\nhs_code,description_en,description_id,keywords\n123456,Product Name,Nama Produk,\"keyword1,keyword2\"\n```\n\n**Required columns:** hs_code, description_en\n**Optional columns:** description_id, keywords"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Countries (Admin)",
+			"item": [
+				{
+					"name": "PBI-M5-06: Create Country",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"country_code\": \"XX\",\n    \"country_name\": \"Test Country\",\n    \"region\": \"Test Region\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/countries/",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "countries", ""]
+						},
+						"description": "Create a new country.\n\n**Body:**\n- `country_code`: 2-letter ISO 3166 code (required)\n- `country_name`: Full country name (required)\n- `region`: Geographic region (optional)"
+					},
+					"response": []
+				},
+				{
+					"name": "PBI-M5-07: Update Country",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"country_name\": \"Updated Country Name\",\n    \"region\": \"Updated Region\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/countries/XX/",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "countries", "XX", ""]
+						},
+						"description": "Update an existing country.\n\n**Note:** country_code cannot be changed."
+					},
+					"response": []
+				},
+				{
+					"name": "PBI-M5-08: Delete Country",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/countries/XX/delete/",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "countries", "XX", "delete", ""]
+						},
+						"description": "Delete a country and all its regulations."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Regulations (Admin)",
+			"item": [
+				{
+					"name": "PBI-M5-09: List Country Regulations",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/countries/US/regulations/",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "countries", "US", "regulations", ""]
+						},
+						"description": "List all regulations for a specific country."
+					},
+					"response": []
+				},
+				{
+					"name": "PBI-M5-10: Create Regulation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"rule_category\": \"Ingredient\",\n    \"forbidden_keywords\": \"banned_item1, banned_item2\",\n    \"required_specs\": \"spec1, spec2\",\n    \"description_rule\": \"Description of this regulation\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/countries/US/regulations/create/",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "countries", "US", "regulations", "create", ""]
+						},
+						"description": "Create a new regulation for a country.\n\n**Body:**\n- `rule_category`: One of: Ingredient, Labeling, Physical, Certification, Documentation (required)\n- `forbidden_keywords`: Comma-separated banned items (optional)\n- `required_specs`: Required specifications (optional)\n- `description_rule`: Detailed description (optional)"
+					},
+					"response": []
+				},
+				{
+					"name": "PBI-M5-11: Update Regulation",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"rule_category\": \"Labeling\",\n    \"forbidden_keywords\": \"updated_banned_item\",\n    \"required_specs\": \"updated_spec\",\n    \"description_rule\": \"Updated regulation description\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/regulations/1/",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "regulations", "1", ""]
+						},
+						"description": "Update an existing regulation by ID."
+					},
+					"response": []
+				},
+				{
+					"name": "PBI-M5-12: Delete Regulation",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/regulations/1/delete/",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "regulations", "1", "delete", ""]
+						},
+						"description": "Delete a regulation by ID."
+					},
+					"response": []
+				},
+				{
+					"name": "PBI-M5-13: Import Regulations (CSV)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": ""
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/regulations/import/",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "regulations", "import", ""]
+						},
+						"description": "Bulk import regulations from CSV file.\n\n**CSV Format:**\n```\ncountry_code,rule_category,forbidden_keywords,required_specs,description_rule\nUS,Ingredient,banned1,spec1,Description here\n```\n\n**Required columns:** country_code, rule_category\n**Optional columns:** forbidden_keywords, required_specs, description_rule\n\n**Valid rule_category values:** Ingredient, Labeling, Physical, Certification, Documentation"
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

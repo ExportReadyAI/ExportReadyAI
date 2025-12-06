@@ -2,14 +2,17 @@
 Authentication Views for ExportReady.AI
 
 Implements:
-- PBI-BE-M1-01: POST /auth/register
-- PBI-BE-M1-02: POST /auth/login
-- PBI-BE-M1-03: GET /auth/me
+- PBI-BE-M1-01: POST /auth/register - User registration
+- PBI-BE-M1-02: POST /auth/login - User login with JWT
+- PBI-BE-M1-03: GET /auth/me - Get current authenticated user
+
+All acceptance criteria for these PBIs are implemented in this module.
 """
 
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from core.permissions import IsAdmin
 from rest_framework.views import APIView
 
 from apps.users.models import User
@@ -25,6 +28,8 @@ from .serializers import (
     RegisterSerializer,
     UserResponseSerializer,
 )
+
+from .serializers import RegisterAdminSerializer
 
 
 class RegisterView(APIView):
@@ -179,5 +184,80 @@ class MeView(APIView):
         return success_response(
             data=response_data,
             message="User retrieved successfully",
+        )
+
+
+class RegisterAdminView(APIView):
+    """
+    API endpoint for registering admin accounts.
+
+    Two authentication methods:
+    1. With admin JWT token (Bearer token in Authorization header)
+       - Existing admins can create new admins
+    2. With admin_code in request body
+       - Bootstrap first admin without existing token
+       - admin_code must match ADMIN_REGISTRATION_CODE in settings
+
+    Accepts: email, password, full_name, is_superuser (optional), admin_code (optional)
+    Creates user with role=Admin and is_staff=True.
+    Response: 201 Created with user data.
+    """
+
+    permission_classes = [AllowAny]  # Check auth in post() method
+    authentication_classes = []
+
+    @extend_schema(
+        summary="Register a new admin user",
+        description="Create an Admin user. Use JWT token (existing admin) or admin_code (bootstrap).",
+        request=RegisterAdminSerializer,
+        responses={
+            201: RegisterResponseSerializer,
+            400: {"description": "Validation error"},
+            401: {"description": "Unauthorized - invalid code or not an admin"},
+            403: {"description": "Forbidden - invalid code"},
+        },
+        tags=["Authentication"],
+    )
+    def post(self, request):
+        from django.conf import settings
+
+        admin_code = request.data.get("admin_code", "").strip()
+        is_token_auth = request.user and request.user.is_authenticated
+        is_code_auth = admin_code and settings.ADMIN_REGISTRATION_CODE and admin_code == settings.ADMIN_REGISTRATION_CODE
+
+        # Check authentication: must have either valid token (as admin) OR valid code
+        if is_token_auth:
+            # Check if user is admin
+            if not (hasattr(request.user, 'role') and request.user.role == UserRole.ADMIN):
+                return error_response(
+                    message="Forbidden - requires Admin role",
+                    status_code=status.HTTP_403_FORBIDDEN,
+                )
+        elif is_code_auth:
+            # Code is valid, proceed
+            pass
+        else:
+            # Neither token auth nor code auth
+            return error_response(
+                message="Unauthorized - provide JWT token (admin) or valid admin_code",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        serializer = RegisterAdminSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return error_response(
+                message="Validation failed",
+                errors=serializer.errors,
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = serializer.save()
+
+        user_data = UserResponseSerializer(user).data
+
+        return created_response(
+            data={"user": user_data},
+            message="Admin user created successfully",
         )
 

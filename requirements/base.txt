@@ -25,3 +25,8 @@ drf-spectacular>=0.27,<1.0
 # UUID support
 uuid>=1.30
 
+# OpenAI SDK (for Kolosal AI integration)
+openai>=2.0,<3.0
+
+# PDF Generation
+reportlab>=4.0,<5.0
