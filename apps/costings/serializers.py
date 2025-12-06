@@ -19,6 +19,12 @@ class CostingSerializer(serializers.ModelSerializer):
     
     product_name = serializers.CharField(source="product.name_local", read_only=True)
     product_id = serializers.IntegerField(write_only=True)
+    target_country_code = serializers.CharField(
+        write_only=True, 
+        required=False, 
+        allow_null=True,
+        help_text="2-letter country code (e.g., US, JP, SG) for CIF calculation. Optional."
+    )
     
     class Meta:
         model = Costing
@@ -29,6 +35,7 @@ class CostingSerializer(serializers.ModelSerializer):
             "cogs_per_unit",
             "packing_cost",
             "target_margin_percent",
+            "target_country_code",
             "recommended_exw_price",
             "recommended_fob_price",
             "recommended_cif_price",

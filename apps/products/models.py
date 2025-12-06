@@ -6,7 +6,6 @@ from apps.business_profiles.models import BusinessProfile
 
 
 # PBI-BE-M2-11: Database - Product Table
-# Create table dengan schema sesuai ER Diagram
 class Product(models.Model):
     business = models.ForeignKey(
         BusinessProfile, on_delete=models.CASCADE, related_name="products"
@@ -35,7 +34,6 @@ class Product(models.Model):
 
 
 # PBI-BE-M2-12: Database - ProductEnrichment Table
-# Create table dengan schema sesuai ER Diagram
 # Foreign key ke Product (1-to-1), Foreign key ke HSCode (nullable), Timestamp: last_updated_ai
 class ProductEnrichment(models.Model):
     product = models.OneToOneField(

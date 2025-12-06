@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "ExportReady Module 4 - Costings & Pricing",
-    "description": "API endpoints for Module 4: Kalkulator Finansial & Logistik (Costing). Includes price calculations (EXW, FOB, CIF) and container optimization.",
+    "description": "API endpoints for Module 4: Kalkulator Finansial & Logistik (Costing). Includes price calculations (EXW, FOB, CIF), container optimization, and AI-powered pricing recommendations using KolosalAI (Claude Sonnet 4.5). Features: automatic cost calculation, export pricing analysis, container capacity estimation (20ft/40ft), and professional PDF report generation.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -123,6 +123,9 @@
               }
             }
           ],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
           "request": {
             "method": "POST",
             "header": [
@@ -143,7 +146,8 @@
               "raw": "{{base_url}}/api/v1/costings/",
               "host": ["{{base_url}}"],
               "path": ["api", "v1", "costings", ""]
-            }
+            },
+            "description": "**Creates export costing with KolosalAI (Claude Sonnet 4.5) powered calculations.**\n\n**AI Features:**\n- **Pricing Recommendations**: 4-section analysis (Competitive, Positioning, Price Adjustment, Risk)\n- **Container Optimization**: AI suggests 2-3 practical improvements for packaging efficiency\n- **Market Intelligence**: Competitive insights and positioning strategy\n\n**Response includes:**\n- `recommended_exw_price`, `recommended_fob_price`, `recommended_cif_price`\n- `container_20ft_capacity` & `container_40ft_capacity` (40ft = 2.1x capacity)\n- `ai_pricing_recommendation`, `price_adjustment_suggestion`, `competitive_insights`\n- `optimization_notes` with AI container packing suggestions\n- Detailed cost breakdown (trucking, documentation, freight, insurance)\n\n**Business Logic:**\n- EXW = (COGS + Packing) × (1 + Margin)\n- FOB = EXW + Trucking $250 + Document $75\n- CIF = FOB + Freight + Insurance (1% of FOB)\n- Exchange rate from `ExchangeRate` model"
           }
         },
         {
