@@ -432,6 +432,9 @@ Berikan rekomendasi dalam format numbered list:"""
     ) -> dict:
         """
         Full compliance analysis - combines all AI compliance checkers.
+        
+        Note: This method analyzes the CURRENT product data. The snapshot
+        should be created by the caller (view/API) when storing the analysis.
 
         Args:
             product: Product model instance
@@ -474,4 +477,89 @@ Berikan rekomendasi dalam format numbered list:"""
             "readiness_score": readiness_score,
             "status_grade": status_grade,
             "recommendations": recommendations,
+        }
+    
+    def analyze_product_from_snapshot(
+        self,
+        product_snapshot: dict,
+        target_country_code: str,
+    ) -> dict:
+        """
+        Run compliance analysis using product snapshot data.
+        This allows analyzing historical product states.
+
+        Args:
+            product_snapshot: Product snapshot dictionary
+            target_country_code: Target country ISO code
+
+        Returns:
+            Dictionary with analysis results
+        """
+        all_issues = []
+
+        # Check ingredient compliance from snapshot
+        ingredient_issues = self.check_ingredient_compliance(
+            material_composition=product_snapshot.get("material_composition", ""),
+            target_country_code=target_country_code,
+        )
+        all_issues.extend(ingredient_issues)
+
+        # Check specification compliance from snapshot
+        spec_issues = self.check_specification_compliance(
+            quality_specs=product_snapshot.get("quality_specs", {}),
+            target_country_code=target_country_code,
+        )
+        all_issues.extend(spec_issues)
+
+        # Check packaging compliance from snapshot
+        packaging_issues = self.check_packaging_compliance(
+            packaging_type=product_snapshot.get("packaging_type", ""),
+            target_country_code=target_country_code,
+        )
+        all_issues.extend(packaging_issues)
+
+        # Calculate readiness score and status grade
+        readiness_score, status_grade = self.calculate_readiness_score(all_issues)
+
+        # Generate recommendations
+        recommendations = self.generate_recommendations(all_issues)
+
+        return {
+            "compliance_issues": all_issues,
+            "readiness_score": readiness_score,
+            "status_grade": status_grade,
+            "recommendations": recommendations,
+        }
+
+    
+    def generate_regulation_recommendations(self, product_snapshot: dict, country_code: str, language: str = "id") -> dict:
+        product_name = product_snapshot.get("name_local", "Unknown Product")
+        return self._generate_fallback_recommendations(product_name, country_code, language)
+    
+    def _generate_fallback_recommendations(self, product_name: str, country_code: str, language: str) -> dict:
+        """Generate fallback recommendations."""
+        if language == "en":
+            return {
+                "overview": {"summary": f"Export guidance for {product_name} to {country_code}.", "key_points": ["Verify HS code", "Research requirements", "Prepare documents"]},
+                "prohibited_items": {"summary": "Check restricted items.", "action_items": ["Review prohibited list", "Verify composition"]},
+                "import_restrictions": {"summary": "Identify licenses needed.", "action_items": ["Contact customs", "Apply for licenses"]},
+                "certifications": {"summary": "Obtain certifications.", "action_items": ["Identify required certs", "Contact cert bodies"]},
+                "labeling_requirements": {"summary": "Meet packaging standards.", "action_items": ["Review regulations", "Update labels"]},
+                "customs_procedures": {"summary": "Prepare customs docs.", "action_items": ["Gather invoices", "Work with broker"]},
+                "testing_inspection": {"summary": "Complete testing.", "action_items": ["Identify tests", "Schedule with lab"]},
+                "intellectual_property": {"summary": "Protect brand.", "action_items": ["Research trademark", "Consider IP protection"]},
+                "shipping_logistics": {"summary": "Plan shipping.", "action_items": ["Compare forwarders", "Consider temperature control"]},
+                "timeline_costs": {"summary": "Budget planning.", "action_items": ["Estimate 3-6 months", "Budget for costs"]}
+            }
+        return {
+            "overview": {"summary": f"Panduan ekspor {product_name} ke {country_code}.", "key_points": ["Verifikasi kode HS", "Riset persyaratan", "Siapkan dokumen"]},
+            "prohibited_items": {"summary": "Periksa barang dibatasi.", "action_items": ["Tinjau daftar terlarang", "Verifikasi komposisi"]},
+            "import_restrictions": {"summary": "Identifikasi lisensi.", "action_items": ["Hubungi bea cukai", "Ajukan lisensi"]},
+            "certifications": {"summary": "Dapatkan sertifikasi.", "action_items": ["Identifikasi sertifikasi wajib", "Hubungi lembaga"]},
+            "labeling_requirements": {"summary": "Penuhi standar kemasan.", "action_items": ["Tinjau regulasi", "Perbarui label"]},
+            "customs_procedures": {"summary": "Siapkan dokumen bea cukai.", "action_items": ["Kumpulkan invoice", "Bekerja dengan broker"]},
+            "testing_inspection": {"summary": "Selesaikan pengujian.", "action_items": ["Identifikasi tes", "Jadwalkan dengan lab"]},
+            "intellectual_property": {"summary": "Lindungi merek.", "action_items": ["Riset merek dagang", "Pertimbangkan IP"]},
+            "shipping_logistics": {"summary": "Rencanakan pengiriman.", "action_items": ["Bandingkan forwarder", "Pertimbangkan kontrol suhu"]},
+            "timeline_costs": {"summary": "Perencanaan anggaran.", "action_items": ["Estimasi 3-6 bulan", "Anggarkan biaya"]}
         }

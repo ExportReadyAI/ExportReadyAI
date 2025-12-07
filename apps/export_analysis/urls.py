@@ -22,6 +22,7 @@ from .views import (
     ExportAnalysisDetailView,
     ExportAnalysisListView,
     ExportAnalysisReanalyzeView,
+    RegulationRecommendationView,
 )
 
 urlpatterns = [
@@ -31,6 +32,11 @@ urlpatterns = [
     path("compare/", ExportAnalysisCompareView.as_view(), name="export-analysis-compare"),
     path("<int:analysis_id>/", ExportAnalysisDetailView.as_view(), name="export-analysis-detail"),
     path("<int:analysis_id>/reanalyze/", ExportAnalysisReanalyzeView.as_view(), name="export-analysis-reanalyze"),
+    path(
+        "<int:analysis_id>/regulation-recommendations/",
+        RegulationRecommendationView.as_view(),
+        name="regulation-recommendations",
+    ),
 ]
 
 # Country endpoints in separate URL file
