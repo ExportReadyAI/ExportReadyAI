@@ -32,6 +32,16 @@ class CatalogAIService:
     AI Service for Catalog features using Kolosal AI.
     """
 
+    # Mapping dari nama model ke ID model Kolosal
+    MODEL_MAPPING = {
+        "Claude Sonnet 4.5": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "Llama 4 Maverick": "meta-llama/llama-4-maverick-17b-128e-instruct",
+        "MiniMax M2": "minimax/minimax-m2",
+        "Kimi K2": "moonshotai/kimi-k2-0905",
+        "Qwen 3 30BA3B": "qwen/qwen3-vl-30b-a3b-instruct",
+        "GLM 4.6": "z-ai/glm-4.6",
+    }
+
     def __init__(self):
         api_key = settings.KOLOSAL_API_KEY
         if not api_key or api_key.strip() == "":
@@ -42,7 +52,9 @@ class CatalogAIService:
             api_key=api_key.strip(),
             base_url=settings.KOLOSAL_BASE_URL,
         )
-        self.model = settings.KOLOSAL_MODEL
+        # Convert model name to ID if needed
+        model_name = settings.KOLOSAL_MODEL
+        self.model = self.MODEL_MAPPING.get(model_name, model_name)
         logger.info(f"CatalogAIService initialized - Model: {self.model}")
 
     def _call_ai(self, prompt: str, system_prompt: str = None, temperature: float = 0.3) -> str:
