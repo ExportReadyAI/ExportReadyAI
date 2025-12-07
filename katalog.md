@@ -164,3 +164,54 @@ GET /api/v1/catalogs/public/
 GET /api/v1/catalogs/public/{catalog_id}/
 ```
 **Note:** Hanya menampilkan catalog dengan `is_published = true`
+
+
+error :
+
+### AI 2: Market Intelligence (via Product)
+Rekomendasi negara tujuan ekspor berdasarkan analisis produk.
+
+```
+GET /api/v1/products/{product_id}/ai/market-intelligence/
+```
+**Output:** Data market intelligence yang sudah ada (404 jika belum ada)
+
+```
+POST /api/v1/products/{product_id}/ai/market-intelligence/
+```
+**Input:**
+| Field | Type | Required |
+|-------|------|----------|
+| current_price_usd | decimal | No |
+| production_capacity | int | No |
+
+**Output:**
+```json
+{
+  "product_id": 35,
+  "recommended_countries": [
+    {
+      "country": "United States",
+      "country_code": "US",
+      "score": 92,
+      "reason": "...",
+      "market_size": "Large",
+      "competition_level": "Medium",
+      "suggested_price_range": "$25 - $45",
+      "entry_strategy": "..."
+    }
+  ],
+  "countries_to_avoid": [
+    { "country": "...", "country_code": "...", "reason": "..." }
+  ],
+  "market_trends": ["..."],
+  "competitive_landscape": "...",
+  "growth_opportunities": ["..."],
+  "risks_and_challenges": ["..."],
+  "overall_recommendation": "..."
+}
+```
+
+**Constraint:** 1 product = 1 market intelligence. POST kedua akan ditolak (400).
+
+---
