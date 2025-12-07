@@ -13,7 +13,7 @@ Implements:
 
 import logging
 from django.shortcuts import get_object_or_404
-from rest_framework import status
+from rest_framework import status, serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -31,12 +31,13 @@ from core.responses import (
 )
 from core.exceptions import NotFoundException, ForbiddenException, ConflictException
 
-from .models import BuyerRequest, BuyerProfile
+from .models import BuyerRequest, BuyerProfile, RequestStatus
 from .serializers import (
     BuyerRequestSerializer,
     CreateBuyerRequestSerializer,
     UpdateBuyerRequestSerializer,
     UpdateBuyerRequestStatusSerializer,
+    SelectCatalogSerializer,
     MatchedUMSerializer,
     BuyerProfileSerializer,
     CreateBuyerProfileSerializer,
@@ -344,6 +345,58 @@ class BuyerRequestMatchedUMKMView(APIView):
 
         serializer = MatchedUMSerializer(enriched_matches, many=True)
         return success_response(data=serializer.data, message="Matched catalogs retrieved successfully")
+
+
+class BuyerRequestSelectCatalogView(APIView):
+    """
+    POST /buyer-requests/:id/select-catalog
+    
+    Buyer selects a catalog from matched results and closes the request.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Select catalog and close buyer request",
+        description="Buyer selects a catalog from matched results. This action updates the request status to 'Closed' and records the selected catalog.",
+        request=SelectCatalogSerializer,
+        responses={200: BuyerRequestSerializer},
+        tags=["Buyer Requests"],
+    )
+    def post(self, request, request_id):
+        """POST /buyer-requests/:id/select-catalog - Select catalog and close request."""
+        try:
+            buyer_request = BuyerRequest.objects.get(id=request_id)
+        except BuyerRequest.DoesNotExist:
+            return not_found_response("Buyer request not found")
+
+        # Validate ownership
+        if request.user.role == UserRole.BUYER and buyer_request.buyer_user_id != request.user.id:
+            return forbidden_response("You can only select catalog for your own requests")
+
+        # Validate catalog_id
+        catalog_id = request.data.get("catalog_id")
+        if not catalog_id:
+            return error_response(message="catalog_id is required", status_code=status.HTTP_400_BAD_REQUEST)
+
+        # Validate catalog exists and is published
+        from apps.catalogs.models import ProductCatalog
+        try:
+            catalog = ProductCatalog.objects.get(id=catalog_id, is_published=True)
+        except ProductCatalog.DoesNotExist:
+            return not_found_response("Published catalog not found")
+
+        # Update request: set selected catalog and close
+        buyer_request.selected_catalog = catalog
+        buyer_request.status = RequestStatus.CLOSED
+        buyer_request.save()
+
+        # Return updated request
+        serializer = BuyerRequestSerializer(buyer_request)
+        return success_response(
+            data=serializer.data,
+            message=f"Catalog selected successfully. Request is now closed."
+        )
 
 
 class BuyerProfilePagination(PageNumberPagination):
