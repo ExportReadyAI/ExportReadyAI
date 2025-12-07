@@ -447,7 +447,7 @@ class UMKMMatchedCatalogsView(APIView):
             product = catalog.product
             
             # 1. Category match (40%)
-            # Compare buyer's category request with product name, description, and catalog info
+            # Compare buyer's category request with product name, description, catalog info, and tags
             category_match = False
             if buyer_request.product_category:
                 buyer_category_lower = buyer_request.product_category.lower()
@@ -455,25 +455,54 @@ class UMKMMatchedCatalogsView(APIView):
                 product_desc_lower = product.description_local.lower()
                 catalog_name_lower = catalog.display_name.lower()
                 catalog_desc_lower = (catalog.marketing_description or "").lower()
+                catalog_tags_lower = " ".join(catalog.tags).lower() if catalog.tags else ""
                 
                 # Split category into keywords (e.g., "Makanan Olahan" -> ["makanan", "olahan"])
                 category_keywords = buyer_category_lower.split()
                 
-                # Check each keyword
-                matched_keyword_count = 0
+                # Category synonyms for better matching
+                category_synonyms = {
+                    'makanan': ['food', 'snack', 'keripik', 'kue', 'roti', 'biskuit', 'camilan', 'kudapan', 'pangan'],
+                    'olahan': ['processed', 'produk', 'ready', 'jadi', 'siap'],
+                    'minuman': ['drink', 'beverage', 'juice', 'jus', 'kopi', 'teh', 'susu'],
+                    'kerajinan': ['craft', 'handicraft', 'handmade', 'anyaman', 'ukiran', 'rajut'],
+                    'tekstil': ['textile', 'kain', 'fabric', 'batik', 'tenun'],
+                    'furniture': ['mebel', 'furnitur', 'kursi', 'meja', 'lemari', 'rak'],
+                }
+                
+                # Expand keywords with synonyms
+                expanded_keywords = []
                 for keyword in category_keywords:
-                    if len(keyword) >= 3:  # Only check meaningful keywords
+                    if len(keyword) >= 3:
+                        expanded_keywords.append(keyword)
+                        # Add synonyms if available
+                        if keyword in category_synonyms:
+                            expanded_keywords.extend(category_synonyms[keyword])
+                
+                # Check each keyword (original + synonyms)
+                matched_keyword_count = 0
+                original_keyword_matched = False
+                
+                for keyword in expanded_keywords:
+                    if len(keyword) >= 3:
                         if keyword in product_name_lower or \
                            keyword in product_desc_lower or \
                            keyword in catalog_name_lower or \
-                           keyword in catalog_desc_lower:
+                           keyword in catalog_desc_lower or \
+                           keyword in catalog_tags_lower:
                             matched_keyword_count += 1
+                            # Track if original keyword (not synonym) matched
+                            if keyword in category_keywords:
+                                original_keyword_matched = True
+                            break  # Count each expanded group once
                 
-                # If at least half of the keywords match, consider it a category match
+                # More lenient: match if ANY keyword or synonym found
                 if matched_keyword_count > 0:
-                    # Score proportional to how many keywords matched
-                    keyword_ratio = matched_keyword_count / max(len(category_keywords), 1)
-                    category_score = int(40 * keyword_ratio)
+                    # Give higher score if original keywords matched vs just synonyms
+                    if original_keyword_matched:
+                        category_score = 40
+                    else:
+                        category_score = 30  # Slightly lower for synonym matches
                     match_score += category_score
                     match_reasons.append(f"Kategori produk sesuai: {buyer_request.product_category}")
                     category_match = True
