@@ -470,15 +470,21 @@ class UMKMMatchedCatalogsView(APIView):
         except (ValueError, TypeError):
             category_id = get_category_id_from_name(buyer_request.product_category)
         
+        # Debug logging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Buyer request category: '{buyer_request.product_category}' -> category_id: {category_id}")
+        
         # If no valid category_id, return empty
         if category_id is None:
             return success_response(
                 data=[],
-                message="No matching catalogs found (invalid category)"
+                message=f"No matching catalogs found (invalid category: '{buyer_request.product_category}')"
             )
         
         # Get all UMKM's products
         umkm_products = Product.objects.filter(business__user=request.user)
+        logger.info(f"UMKM {request.user.id} has {umkm_products.count()} products")
         
         # Get catalogs for these products that match the category
         umkm_catalogs = ProductCatalog.objects.filter(
@@ -486,6 +492,12 @@ class UMKMMatchedCatalogsView(APIView):
             product__category_id=category_id,  # Match by category_id
             is_published=True  # Only show published catalogs
         ).select_related('product').prefetch_related('images')
+        
+        logger.info(f"Found {umkm_catalogs.count()} catalogs matching category_id={category_id}")
+        
+        # Log product details for debugging
+        for cat in umkm_catalogs:
+            logger.info(f"  - Catalog {cat.id}: {cat.display_name}, Product: {cat.product.name_local} (category_id={cat.product.category_id})")
 
         # Calculate matches
         matched_catalogs = []
