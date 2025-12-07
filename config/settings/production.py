@@ -11,6 +11,11 @@ DEBUG = env.bool("DEBUG", default=False)  # noqa: F405
 RAILWAY_STATIC_URL = env("RAILWAY_STATIC_URL", default="")  # noqa: F405
 RAILWAY_PUBLIC_DOMAIN = env("RAILWAY_PUBLIC_DOMAIN", default="")  # noqa: F405
 
+# Parse ALLOWED_HOSTS from env (comma-separated)
+env_allowed_hosts = env.list("ALLOWED_HOSTS", default=[])  # noqa: F405
+if env_allowed_hosts:
+    ALLOWED_HOSTS.extend(env_allowed_hosts)  # noqa: F405
+
 if RAILWAY_PUBLIC_DOMAIN:
     ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)  # noqa: F405
     ALLOWED_HOSTS.append(f"{RAILWAY_PUBLIC_DOMAIN}.railway.app")  # noqa: F405
@@ -38,8 +43,9 @@ SECURE_HSTS_SECONDS = 31536000  # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
-# HTTPS Settings - Railway provides HTTPS
-SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)  # noqa: F405
+# HTTPS Settings - Railway provides HTTPS at edge
+# Disable SSL redirect to allow Railway's internal health checks
+SECURE_SSL_REDIRECT = False
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
