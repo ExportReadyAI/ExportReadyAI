@@ -86,6 +86,22 @@ class ProductCatalog(models.Model):
         help_text="CIF price in USD (optional)"
     )
 
+    # AI-Generated Content (from AI Description Generator)
+    export_description = models.TextField(
+        blank=True,
+        help_text="AI-generated English B2B description for international buyers"
+    )
+    technical_specs = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Flexible technical specifications (e.g., material, moisture_level, finishing, dimensions, weight, certifications)"
+    )
+    safety_info = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Material/Food safety information (flexible based on product type)"
+    )
+
     # Additional catalog fields
     lead_time_days = models.PositiveIntegerField(
         default=14,
@@ -219,3 +235,145 @@ class CatalogVariant(models.Model):
 
     def __str__(self):
         return f"{self.catalog.display_name} - {self.variant_name}"
+
+
+class CatalogMarketIntelligence(models.Model):
+    """
+    AI-generated Market Intelligence for a catalog.
+    OneToOne relationship - each catalog can only have ONE market intelligence result.
+    """
+
+    catalog = models.OneToOneField(
+        ProductCatalog,
+        on_delete=models.CASCADE,
+        related_name="market_intelligence",
+        help_text="Catalog this market intelligence belongs to"
+    )
+
+    # Recommended countries (stored as JSON array)
+    recommended_countries = models.JSONField(
+        default=list,
+        help_text="List of recommended target countries with details"
+    )
+
+    # Countries to avoid
+    countries_to_avoid = models.JSONField(
+        default=list,
+        help_text="List of countries to avoid with reasons"
+    )
+
+    # Market trends
+    market_trends = models.JSONField(
+        default=list,
+        help_text="List of relevant market trends"
+    )
+
+    # Analysis text fields
+    competitive_landscape = models.TextField(
+        blank=True,
+        help_text="Competitive landscape analysis"
+    )
+    growth_opportunities = models.JSONField(
+        default=list,
+        help_text="List of growth opportunities"
+    )
+    risks_and_challenges = models.JSONField(
+        default=list,
+        help_text="List of risks and challenges"
+    )
+    overall_recommendation = models.TextField(
+        blank=True,
+        help_text="Overall strategic recommendation"
+    )
+
+    # Metadata
+    generated_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "catalog_market_intelligence"
+        verbose_name = "Catalog Market Intelligence"
+        verbose_name_plural = "Catalog Market Intelligence"
+
+    def __str__(self):
+        return f"Market Intelligence for {self.catalog.display_name}"
+
+
+class CatalogPricingResult(models.Model):
+    """
+    AI-generated Pricing Result for a catalog.
+    OneToOne relationship - each catalog can only have ONE pricing result.
+    """
+
+    catalog = models.OneToOneField(
+        ProductCatalog,
+        on_delete=models.CASCADE,
+        related_name="pricing_result",
+        help_text="Catalog this pricing result belongs to"
+    )
+
+    # Input parameters
+    cogs_per_unit_idr = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="Cost of goods sold per unit in IDR"
+    )
+    target_margin_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        help_text="Target margin percentage"
+    )
+    target_country_code = models.CharField(
+        max_length=2,
+        blank=True,
+        null=True,
+        help_text="Target country for CIF calculation"
+    )
+
+    # Calculated prices
+    exchange_rate_used = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="Exchange rate used for calculation"
+    )
+    exw_price_usd = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="EXW price in USD"
+    )
+    fob_price_usd = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="FOB price in USD"
+    )
+    cif_price_usd = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="CIF price in USD (if target country provided)"
+    )
+
+    # AI Insight
+    pricing_insight = models.TextField(
+        blank=True,
+        help_text="AI-generated pricing insight and recommendations"
+    )
+
+    # Pricing breakdown (JSON)
+    pricing_breakdown = models.JSONField(
+        default=dict,
+        help_text="Detailed pricing breakdown"
+    )
+
+    # Metadata
+    generated_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "catalog_pricing_results"
+        verbose_name = "Catalog Pricing Result"
+        verbose_name_plural = "Catalog Pricing Results"
+
+    def __str__(self):
+        return f"Pricing for {self.catalog.display_name}: EXW ${self.exw_price_usd}"
