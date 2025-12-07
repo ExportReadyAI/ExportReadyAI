@@ -16,6 +16,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.shortcuts import get_object_or_404
+from django.db import models
 
 from apps.products.models import Product
 from .models import ProductCatalog, ProductCatalogImage, CatalogVariantType, CatalogVariantOption
@@ -50,11 +51,15 @@ class CatalogPagination(PageNumberPagination):
 class CatalogListCreateView(APIView):
     """
     GET: List all catalogs for the authenticated user
-    POST: Create a new catalog entry
+    POST: Create a new catalog entry with multiple image uploads
+    
+    Supports multipart/form-data for direct image uploads to Supabase.
+    Multiple images can be uploaded using 'images[]' field (array of files).
     """
 
     permission_classes = [IsAuthenticated]
     pagination_class = CatalogPagination
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request):
         """List all catalogs for the user's products"""
@@ -78,7 +83,18 @@ class CatalogListCreateView(APIView):
         return paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
-        """Create a new catalog entry"""
+        """
+        Create a new catalog entry with multiple image uploads.
+        
+        Supports:
+        - multipart/form-data: Upload images directly (images[] field for multiple files)
+        - application/json: Use image URLs instead
+        
+        Image files are uploaded to Supabase Storage bucket "catalogs".
+        Max file size: 10MB per image.
+        """
+        from .services import get_catalog_storage_service
+        
         user = request.user
 
         # Validate product belongs to user
@@ -107,9 +123,77 @@ class CatalogListCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = ProductCatalogCreateSerializer(data=request.data)
+        # Handle image uploads before serializer validation
+        data = request.data.copy()
+        uploaded_images = []
+        
+        # Handle multiple image uploads (images[] or images)
+        image_files = []
+        if "images[]" in request.FILES:
+            image_files = request.FILES.getlist("images[]")
+        elif "images" in request.FILES:
+            # Support both single and multiple
+            images = request.FILES.getlist("images")
+            image_files = images if isinstance(images, list) else [images]
+        elif "image" in request.FILES:
+            # Single image for backward compatibility
+            image_files = [request.FILES.get("image")]
+        
+        # Upload images to Supabase if any files provided
+        if image_files:
+            storage_service = get_catalog_storage_service()
+            # We'll create catalog first, then upload images
+            # Store files temporarily to upload after catalog creation
+            uploaded_images = image_files
+        
+        # Remove image files from data (they'll be handled separately)
+        data.pop("images[]", None)
+        data.pop("images", None)
+        data.pop("image", None)
+        
+        # Create catalog first
+        serializer = ProductCatalogCreateSerializer(data=data)
         if serializer.is_valid():
             catalog = serializer.save()
+            
+            # Now upload images to Supabase and create image records
+            if uploaded_images:
+                storage_service = get_catalog_storage_service()
+                max_size = 10 * 1024 * 1024  # 10MB
+                
+                for idx, image_file in enumerate(uploaded_images):
+                    # Validate file size
+                    if image_file.size > max_size:
+                        logger.error(f"Image {idx+1} size ({image_file.size} bytes) exceeds 10MB limit")
+                        # Continue with other images, but log the error
+                        continue
+                    
+                    try:
+                        # Upload to Supabase
+                        supabase_url = storage_service.upload_image(image_file, catalog.id)
+                        
+                        if supabase_url:
+                            # Create image record with Supabase URL
+                            ProductCatalogImage.objects.create(
+                                catalog=catalog,
+                                image_url=supabase_url,
+                                alt_text=request.data.get(f"alt_text_{idx}", ""),
+                                sort_order=idx,
+                                is_primary=(idx == 0)  # First image is primary
+                            )
+                            logger.info(f"Image {idx+1} uploaded and saved for catalog {catalog.id}")
+                        else:
+                            logger.warning(f"Image {idx+1} upload returned None, skipping")
+                    except ValueError as e:
+                        # File size validation error (double-check)
+                        logger.error(f"Image {idx+1} validation failed: {e}")
+                        # Continue with other images
+                    except Exception as e:
+                        logger.error(f"Failed to upload image {idx+1}: {e}")
+                        # Continue with other images
+            
+            # Refresh catalog to include new images
+            catalog.refresh_from_db()
             response_serializer = ProductCatalogSerializer(catalog)
             return Response(
                 {
@@ -129,11 +213,12 @@ class CatalogListCreateView(APIView):
 class CatalogDetailView(APIView):
     """
     GET: Get catalog detail
-    PUT/PATCH: Update catalog
+    PUT/PATCH: Update catalog (supports multiple image uploads via multipart/form-data)
     DELETE: Delete catalog
     """
 
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_catalog(self, catalog_id, user):
         """Helper to get catalog with ownership check"""
@@ -150,17 +235,91 @@ class CatalogDetailView(APIView):
         return Response(serializer.data)
 
     def put(self, request, catalog_id):
-        """Update catalog (full or partial)"""
+        """
+        Update catalog (full or partial) with optional multiple image uploads.
+        
+        Supports:
+        - multipart/form-data: Upload new images (images[] field for multiple files)
+        - application/json: Update catalog fields only
+        
+        New images are uploaded to Supabase Storage and added to existing images.
+        """
+        from .services import get_catalog_storage_service
+        
         catalog = self.get_catalog(catalog_id, request.user)
+
+        # Handle new image uploads
+        data = request.data.copy()
+        uploaded_images = []
+        
+        # Handle multiple image uploads (images[] or images)
+        image_files = []
+        if "images[]" in request.FILES:
+            image_files = request.FILES.getlist("images[]")
+        elif "images" in request.FILES:
+            images = request.FILES.getlist("images")
+            image_files = images if isinstance(images, list) else [images]
+        elif "image" in request.FILES:
+            image_files = [request.FILES.get("image")]
+        
+        if image_files:
+            uploaded_images = image_files
+        
+        # Remove image files from data
+        data.pop("images[]", None)
+        data.pop("images", None)
+        data.pop("image", None)
 
         serializer = ProductCatalogUpdateSerializer(
             catalog,
-            data=request.data,
+            data=data,
             partial=True
         )
 
         if serializer.is_valid():
             catalog = serializer.save()
+            
+            # Upload new images to Supabase and create image records
+            if uploaded_images:
+                storage_service = get_catalog_storage_service()
+                max_size = 10 * 1024 * 1024  # 10MB
+                
+                # Get current max sort_order to append new images
+                max_sort_order = catalog.images.aggregate(
+                    max_order=models.Max("sort_order")
+                )["max_order"] or -1
+                
+                for idx, image_file in enumerate(uploaded_images):
+                    # Validate file size
+                    if image_file.size > max_size:
+                        logger.error(f"Image {idx+1} size ({image_file.size} bytes) exceeds 10MB limit")
+                        # Continue with other images
+                        continue
+                    
+                    try:
+                        # Upload to Supabase
+                        supabase_url = storage_service.upload_image(image_file, catalog.id)
+                        
+                        if supabase_url:
+                            # Create image record with Supabase URL
+                            ProductCatalogImage.objects.create(
+                                catalog=catalog,
+                                image_url=supabase_url,
+                                alt_text=request.data.get(f"alt_text_{idx}", ""),
+                                sort_order=max_sort_order + idx + 1,
+                                is_primary=False  # Don't change primary on update
+                            )
+                            logger.info(f"New image {idx+1} uploaded and saved for catalog {catalog.id}")
+                        else:
+                            logger.warning(f"Image {idx+1} upload returned None, skipping")
+                    except ValueError as e:
+                        # File size validation error (double-check)
+                        logger.error(f"Image {idx+1} validation failed: {e}")
+                    except Exception as e:
+                        logger.error(f"Failed to upload image {idx+1}: {e}")
+            
+            # Refresh catalog to include new images
+            catalog.refresh_from_db()
             response_serializer = ProductCatalogSerializer(catalog)
             return Response(
                 {
@@ -247,6 +406,17 @@ class CatalogImageListCreateView(APIView):
         # If file is uploaded, try to upload to Supabase
         uploaded_file = request.FILES.get("image")
         if uploaded_file:
+            # Validate file size (10MB limit)
+            max_size = 10 * 1024 * 1024  # 10MB
+            if uploaded_file.size > max_size:
+                return Response(
+                    {
+                        "success": False,
+                        "message": f"Image size ({uploaded_file.size} bytes) exceeds maximum allowed size (10MB)"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
             try:
                 storage_service = get_catalog_storage_service()
                 supabase_url = storage_service.upload_image(uploaded_file, catalog_id)
@@ -256,9 +426,24 @@ class CatalogImageListCreateView(APIView):
                     data["image_url"] = supabase_url
                     data.pop("image", None)
                 # else: supabase_url is None, keep the file in data for local storage via ImageField
+            except ValueError as e:
+                # File size validation error (already checked above, but catch just in case)
+                return Response(
+                    {
+                        "success": False,
+                        "message": str(e)
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             except Exception as e:
                 logger.error(f"Failed to upload image to Supabase: {e}")
-                # Keep the file in data for local storage via ImageField
+                return Response(
+                    {
+                        "success": False,
+                        "message": f"Failed to upload image: {str(e)}"
+                    },
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
         serializer = CatalogImageCreateSerializer(data=data)
         if serializer.is_valid():
@@ -308,6 +493,17 @@ class CatalogImageDetailView(APIView):
         # If new file is uploaded, try to upload to Supabase
         uploaded_file = request.FILES.get("image")
         if uploaded_file:
+            # Validate file size (10MB limit)
+            max_size = 10 * 1024 * 1024  # 10MB
+            if uploaded_file.size > max_size:
+                return Response(
+                    {
+                        "success": False,
+                        "message": f"Image size ({uploaded_file.size} bytes) exceeds maximum allowed size (10MB)"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
             try:
                 storage_service = get_catalog_storage_service()
                 # Delete old image from Supabase if exists
@@ -320,9 +516,24 @@ class CatalogImageDetailView(APIView):
                     data["image_url"] = supabase_url
                     data.pop("image", None)
                 # else: keep file in data for local storage
+            except ValueError as e:
+                # File size validation error
+                return Response(
+                    {
+                        "success": False,
+                        "message": str(e)
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             except Exception as e:
                 logger.error(f"Failed to upload image to Supabase: {e}")
-                # Keep the file in data for local storage via ImageField
+                return Response(
+                    {
+                        "success": False,
+                        "message": f"Failed to upload image: {str(e)}"
+                    },
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
         serializer = CatalogImageSerializer(
             image, data=data, partial=True, context={"request": request}

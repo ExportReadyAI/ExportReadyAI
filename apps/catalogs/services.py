@@ -485,7 +485,7 @@ class CatalogStorageService:
         self.supabase_url = getattr(settings, "SUPABASE_URL", "")
         self.supabase_key = getattr(settings, "SUPABASE_ANON_KEY", "")
         # Use dedicated bucket for catalog images
-        self.bucket_name = getattr(settings, "SUPABASE_CATALOG_BUCKET", "catalog-images")
+        self.bucket_name = getattr(settings, "SUPABASE_CATALOG_BUCKET", "catalogs")
 
         self.client = None
         try:
@@ -509,8 +509,13 @@ class CatalogStorageService:
             catalog_id: ID of the catalog
 
         Returns:
-            Public URL of the uploaded image
+            Public URL of the uploaded image, or None if upload failed
         """
+        # Validate file size (10MB limit)
+        max_size = 10 * 1024 * 1024  # 10MB
+        if file.size > max_size:
+            raise ValueError(f"File size ({file.size} bytes) exceeds maximum allowed size (10MB)")
+        
         # Generate unique filename
         file_ext = Path(file.name).suffix.lower()
         unique_filename = f"{uuid.uuid4()}{file_ext}"
@@ -540,6 +545,11 @@ class CatalogStorageService:
                     file_options=file_options
                 )
 
+                # Check for errors in response
+                if isinstance(response, dict) and "error" in response:
+                    error_msg = response.get("error", "Unknown error")
+                    raise Exception(f"Supabase upload error: {error_msg}")
+
                 # Get public URL
                 public_url = self.client.storage.from_(self.bucket_name).get_public_url(storage_path)
                 logger.info(f"✅ Catalog image uploaded: {public_url}")
@@ -547,10 +557,14 @@ class CatalogStorageService:
 
             except Exception as e:
                 logger.error(f"❌ Supabase upload failed: {e}")
-                logger.warning("Falling back to local storage...")
-                return self._upload_local(file, storage_path)
+                logger.error(f"Error type: {type(e).__name__}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                raise  # Re-raise to let caller handle it
         else:
-            return self._upload_local(file, storage_path)
+            # No Supabase client, return None to use local storage
+            logger.warning("Supabase not available. Image should be stored locally via ImageField.")
+            return None
 
     def _upload_local(self, file, storage_path: str) -> str:
         """
@@ -563,7 +577,7 @@ class CatalogStorageService:
         return None
 
     def _get_content_type(self, file_ext: str) -> str:
-        """Get MIME type from file extension."""
+        """Get MIME type from file extension. Supports all common image formats."""
         content_types = {
             ".jpg": "image/jpeg",
             ".jpeg": "image/jpeg",
@@ -571,8 +585,14 @@ class CatalogStorageService:
             ".gif": "image/gif",
             ".webp": "image/webp",
             ".svg": "image/svg+xml",
+            ".bmp": "image/bmp",
+            ".tiff": "image/tiff",
+            ".tif": "image/tiff",
+            ".ico": "image/x-icon",
+            ".heic": "image/heic",
+            ".heif": "image/heif",
         }
-        return content_types.get(file_ext.lower(), "application/octet-stream")
+        return content_types.get(file_ext.lower(), "image/jpeg")  # Default to jpeg for unknown extensions
 
     def delete_image(self, file_url: str) -> bool:
         """

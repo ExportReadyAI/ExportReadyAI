@@ -166,30 +166,43 @@ class UpdateBuyerRequestStatusSerializer(serializers.Serializer):
         return instance
 
 
+class MatchedCatalogSerializer(serializers.Serializer):
+    """
+    Serializer for catalog details in matched results.
+    """
+    id = serializers.IntegerField()
+    display_name = serializers.CharField()
+    export_description = serializers.CharField(allow_null=True)
+    marketing_description = serializers.CharField(allow_null=True)
+    technical_specs = serializers.DictField()
+    tags = serializers.ListField(child=serializers.CharField())
+    min_order_quantity = serializers.FloatField()
+    unit_type = serializers.CharField()
+    available_stock = serializers.IntegerField()
+    base_price_exw = serializers.FloatField()
+    base_price_fob = serializers.FloatField(allow_null=True)
+    base_price_cif = serializers.FloatField(allow_null=True)
+    lead_time_days = serializers.IntegerField()
+    primary_image_url = serializers.URLField(allow_null=True)
+
+
 class MatchedUMSerializer(serializers.Serializer):
     """
-    Serializer for matched UMKM in buyer request.
+    Serializer for matched UMKM with catalog details in buyer request.
     
     PBI-BE-M6-13: GET /buyer-requests/:id/matched-umkm
+    
+    Simplified to category-only matching.
+    Multiple catalogs per UMKM are returned if they match.
     """
 
     umkm_id = serializers.IntegerField()
     company_name = serializers.CharField()
     email = serializers.EmailField()
     full_name = serializers.CharField()
-    match_score = serializers.IntegerField()
-    contact_info = serializers.SerializerMethodField()
-
-    def get_contact_info(self, obj):
-        """Get contact info from business profile if available."""
-        try:
-            business_profile = BusinessProfile.objects.get(user_id=obj["umkm_id"])
-            return {
-                "company_name": business_profile.company_name,
-                "address": business_profile.address,
-            }
-        except BusinessProfile.DoesNotExist:
-            return None
+    match = serializers.CharField()
+    contact_info = serializers.DictField()
+    catalog = MatchedCatalogSerializer()
 
 
 class BuyerProfileSerializer(serializers.ModelSerializer):

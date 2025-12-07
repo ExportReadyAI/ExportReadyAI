@@ -271,5 +271,5 @@ SUPABASE_ANON_KEY = env("SUPABASE_ANON_KEY", default="")
 # Bucket for educational materials (Module 7)
 SUPABASE_STORAGE_BUCKET = env("SUPABASE_STORAGE_BUCKET", default="educational-materials")
 # Bucket for catalog images
-SUPABASE_CATALOG_BUCKET = env("SUPABASE_CATALOG_BUCKET", default="catalog-images")
+SUPABASE_CATALOG_BUCKET = env("SUPABASE_CATALOG_BUCKET", default="catalogs")
 
