@@ -11,8 +11,8 @@ Endpoints:
 
 AI Features:
 - POST /catalogs/:id/ai/description/             - Generate international descriptions
-- POST /catalogs/:id/ai/market-intelligence/     - Get market intelligence
-- POST /catalogs/:id/ai/pricing/                 - Calculate pricing
+- GET/POST /catalogs/:id/ai/market-intelligence/ - Get/Generate market intelligence
+- GET/POST /catalogs/:id/ai/pricing/             - Get/Generate pricing
 
 Public (no auth):
 - GET /catalogs/public/                          - List published catalogs

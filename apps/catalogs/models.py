@@ -86,6 +86,22 @@ class ProductCatalog(models.Model):
         help_text="CIF price in USD (optional)"
     )
 
+    # AI-Generated Content (from AI Description Generator)
+    export_description = models.TextField(
+        blank=True,
+        help_text="AI-generated English B2B description for international buyers"
+    )
+    technical_specs = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Flexible technical specifications (e.g., material, moisture_level, finishing, dimensions, weight, certifications)"
+    )
+    safety_info = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Material/Food safety information (flexible based on product type)"
+    )
+
     # Additional catalog fields
     lead_time_days = models.PositiveIntegerField(
         default=14,
@@ -221,17 +237,17 @@ class CatalogVariant(models.Model):
         return f"{self.catalog.display_name} - {self.variant_name}"
 
 
-class CatalogMarketIntelligence(models.Model):
+class ProductMarketIntelligence(models.Model):
     """
-    AI-generated Market Intelligence for a catalog.
-    OneToOne relationship - each catalog can only have ONE market intelligence result.
+    AI-generated Market Intelligence for a product.
+    OneToOne relationship - each product can only have ONE market intelligence result.
     """
 
-    catalog = models.OneToOneField(
-        ProductCatalog,
+    product = models.OneToOneField(
+        Product,
         on_delete=models.CASCADE,
         related_name="market_intelligence",
-        help_text="Catalog this market intelligence belongs to"
+        help_text="Product this market intelligence belongs to"
     )
 
     # Recommended countries (stored as JSON array)
@@ -275,25 +291,25 @@ class CatalogMarketIntelligence(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "catalog_market_intelligence"
-        verbose_name = "Catalog Market Intelligence"
-        verbose_name_plural = "Catalog Market Intelligence"
+        db_table = "product_market_intelligence"
+        verbose_name = "Product Market Intelligence"
+        verbose_name_plural = "Product Market Intelligence"
 
     def __str__(self):
-        return f"Market Intelligence for {self.catalog.display_name}"
+        return f"Market Intelligence for {self.product.name_local}"
 
 
-class CatalogPricingResult(models.Model):
+class ProductPricingResult(models.Model):
     """
-    AI-generated Pricing Result for a catalog.
-    OneToOne relationship - each catalog can only have ONE pricing result.
+    AI-generated Pricing Result for a product.
+    OneToOne relationship - each product can only have ONE pricing result.
     """
 
-    catalog = models.OneToOneField(
-        ProductCatalog,
+    product = models.OneToOneField(
+        Product,
         on_delete=models.CASCADE,
         related_name="pricing_result",
-        help_text="Catalog this pricing result belongs to"
+        help_text="Product this pricing result belongs to"
     )
 
     # Input parameters
@@ -355,9 +371,9 @@ class CatalogPricingResult(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "catalog_pricing_results"
-        verbose_name = "Catalog Pricing Result"
-        verbose_name_plural = "Catalog Pricing Results"
+        db_table = "product_pricing_results"
+        verbose_name = "Product Pricing Result"
+        verbose_name_plural = "Product Pricing Results"
 
     def __str__(self):
-        return f"Pricing for {self.catalog.display_name}: EXW ${self.exw_price_usd}"
+        return f"Pricing for {self.product.name_local}: EXW ${self.exw_price_usd}"

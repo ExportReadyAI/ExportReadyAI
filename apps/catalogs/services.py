@@ -133,7 +133,6 @@ OUTPUT FORMAT (dalam JSON):
 
     "safety_sheet": {{
         "material_safety": "Material safety information",
-        "compliance": ["List of compliance standards"],
         "warnings": ["Any warnings or precautions"],
         "storage": "Storage requirements",
         {"food_safety" if is_food_product else "handling"}: "{'Food safety info' if is_food_product else 'Handling instructions'}"
