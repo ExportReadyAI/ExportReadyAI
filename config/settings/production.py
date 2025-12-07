@@ -55,14 +55,6 @@ if RAILWAY_PUBLIC_DOMAIN:
     CORS_ALLOWED_ORIGINS.append(f"https://{RAILWAY_PUBLIC_DOMAIN}")  # noqa: F405
     CORS_ALLOWED_ORIGINS.append(f"https://{RAILWAY_PUBLIC_DOMAIN}.railway.app")  # noqa: F405
 
-# Logging - Add file handler for production
-LOGGING["handlers"]["file"] = {  # noqa: F405
-    "class": "logging.FileHandler",
-    "filename": BASE_DIR / "logs" / "django.log",  # noqa: F405
-    "formatter": "verbose",
-}
-LOGGING["root"]["handlers"] = ["console", "file"]  # noqa: F405
-
 # Sentry Configuration (optional)
 SENTRY_DSN = env("SENTRY_DSN", default=None)  # noqa: F405
 if SENTRY_DSN:
