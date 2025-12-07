@@ -10,6 +10,7 @@ from .views import (
     BuyerRequestStatusView,
     BuyerRequestMatchedUMKMView,
     BuyerRequestSelectCatalogView,
+    UMKMMatchedCatalogsView,
     BuyerProfileCreateView,
     BuyerMyProfileView,
     BuyerProfileUpdateView,
@@ -32,6 +33,7 @@ urlpatterns = [
     path("requests/<int:request_id>/", BuyerRequestDetailView.as_view(), name="requests-detail"),
     path("requests/<int:request_id>/status/", BuyerRequestStatusView.as_view(), name="requests-status"),
     path("requests/<int:request_id>/matched-umkm/", BuyerRequestMatchedUMKMView.as_view(), name="requests-matched-umkm"),
+    path("requests/<int:request_id>/matched-catalogs/", UMKMMatchedCatalogsView.as_view(), name="requests-matched-catalogs"),
     path("requests/<int:request_id>/select-catalog/", BuyerRequestSelectCatalogView.as_view(), name="requests-select-catalog"),
 ]
 

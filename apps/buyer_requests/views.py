@@ -399,6 +399,148 @@ class BuyerRequestSelectCatalogView(APIView):
         )
 
 
+class UMKMMatchedCatalogsView(APIView):
+    """
+    GET /buyer-requests/:id/matched-catalogs
+    
+    UMKM dapat melihat katalog mereka sendiri yang match dengan buyer request.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Get UMKM's catalogs that match buyer request",
+        description="Returns list of UMKM's own catalogs that match the buyer request criteria. Includes match score and reasons. Only accessible by UMKM role.",
+        responses={200: serializers.ListField(child=serializers.DictField())},
+        tags=["Buyer Requests"],
+    )
+    def get(self, request, request_id):
+        """GET /buyer-requests/:id/matched-catalogs - Get UMKM's matching catalogs."""
+        # Only UMKM can access
+        if request.user.role != UserRole.UMKM:
+            return forbidden_response("Only UMKM can access this endpoint")
+
+        try:
+            buyer_request = BuyerRequest.objects.get(id=request_id)
+        except BuyerRequest.DoesNotExist:
+            return not_found_response("Buyer request not found")
+
+        # Get UMKM's catalogs
+        from apps.catalogs.models import ProductCatalog
+        from apps.products.models import Product
+        
+        # Get all UMKM's products
+        umkm_products = Product.objects.filter(business__user=request.user)
+        
+        # Get catalogs for these products (published only for better UX)
+        umkm_catalogs = ProductCatalog.objects.filter(
+            product__in=umkm_products,
+            is_published=True  # Only show published catalogs
+        ).select_related('product').prefetch_related('images')
+
+        # Calculate matches
+        matched_catalogs = []
+        
+        for catalog in umkm_catalogs:
+            match_score = 0
+            match_reasons = []
+            product = catalog.product
+            
+            # 1. Category match (40%)
+            # Compare buyer's category request with product name, description, and catalog info
+            category_match = False
+            if buyer_request.product_category:
+                buyer_category_lower = buyer_request.product_category.lower()
+                product_name_lower = product.name_local.lower()
+                product_desc_lower = product.description_local.lower()
+                catalog_name_lower = catalog.display_name.lower()
+                catalog_desc_lower = (catalog.marketing_description or "").lower()
+                
+                # Split category into keywords (e.g., "Makanan Olahan" -> ["makanan", "olahan"])
+                category_keywords = buyer_category_lower.split()
+                
+                # Check each keyword
+                matched_keyword_count = 0
+                for keyword in category_keywords:
+                    if len(keyword) >= 3:  # Only check meaningful keywords
+                        if keyword in product_name_lower or \
+                           keyword in product_desc_lower or \
+                           keyword in catalog_name_lower or \
+                           keyword in catalog_desc_lower:
+                            matched_keyword_count += 1
+                
+                # If at least half of the keywords match, consider it a category match
+                if matched_keyword_count > 0:
+                    # Score proportional to how many keywords matched
+                    keyword_ratio = matched_keyword_count / max(len(category_keywords), 1)
+                    category_score = int(40 * keyword_ratio)
+                    match_score += category_score
+                    match_reasons.append(f"Kategori produk sesuai: {buyer_request.product_category}")
+                    category_match = True
+            
+            # 2. Country availability (20%)
+            # Assume published catalogs are export-ready for all countries
+            match_score += 20
+            match_reasons.append(f"Produk siap export ke {buyer_request.destination_country}")
+            
+            # 3. Volume capacity (20%)
+            if catalog.available_stock and catalog.available_stock >= buyer_request.target_volume:
+                match_score += 20
+                match_reasons.append(f"Volume produksi mencukupi: {catalog.available_stock} {catalog.unit_type}")
+            elif catalog.available_stock:
+                # Partial score if close to target
+                ratio = catalog.available_stock / buyer_request.target_volume
+                if ratio >= 0.5:  # At least 50% of required volume
+                    partial_score = int(20 * ratio)
+                    match_score += partial_score
+                    match_reasons.append(f"Volume produksi: {catalog.available_stock} {catalog.unit_type} (partial match)")
+            
+            # 4. Keyword relevance (20%)
+            if buyer_request.keyword_tags and catalog.tags:
+                matched_keywords = set(buyer_request.keyword_tags) & set(catalog.tags)
+                if matched_keywords:
+                    keyword_score = min(20, len(matched_keywords) * 5)  # 5 points per keyword, max 20
+                    match_score += keyword_score
+                    match_reasons.append(f"Keywords match: {', '.join(matched_keywords)}")
+            
+            # Include catalogs with at least 30% match score (country + partial match)
+            # This ensures we show relevant catalogs even without perfect category match
+            if match_score >= 30:
+                # Get primary image
+                primary_image = None
+                primary_img = catalog.images.filter(is_primary=True).first()
+                if primary_img:
+                    primary_image = primary_img.image_url
+                else:
+                    first_img = catalog.images.first()
+                    if first_img:
+                        primary_image = first_img.image_url
+                
+                matched_catalogs.append({
+                    'catalog_id': catalog.id,
+                    'display_name': catalog.display_name,
+                    'match_score': match_score,
+                    'match_reasons': match_reasons,
+                    'primary_image': primary_image,
+                    'base_price_exw': float(catalog.base_price_exw) if catalog.base_price_exw else 0.0,
+                    'base_price_fob': float(catalog.base_price_fob) if catalog.base_price_fob else None,
+                    'min_order_quantity': float(catalog.min_order_quantity) if catalog.min_order_quantity else 0.0,
+                    'unit_type': catalog.unit_type or '',
+                    'lead_time_days': catalog.lead_time_days or 0,
+                    'available_stock': catalog.available_stock or 0,
+                    'has_ai_description': bool(catalog.export_description and catalog.export_description.strip()),
+                    'is_published': catalog.is_published,
+                })
+        
+        # Sort by match score (highest first)
+        matched_catalogs.sort(key=lambda x: x['match_score'], reverse=True)
+        
+        return success_response(
+            data=matched_catalogs,
+            message=f"Found {len(matched_catalogs)} matching catalogs"
+        )
+
+
 class BuyerProfilePagination(PageNumberPagination):
     """Pagination for buyer profiles list."""
     page_size = 10

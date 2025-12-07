@@ -1,11 +1,11 @@
 """
-"""Django Production Settings for ExportReady.AI
+Django Production Settings for ExportReady.AI
 """
 
 import dj_database_url
 from .base import *  # noqa: F401, F403
 
-DEBUG = env.bool("DEBUG", default=False)  # noqa: F405ool("DEBUG", default=False)  # noqa: F405
+DEBUG = env.bool("DEBUG", default=False)  # noqa: F405
 
 # Railway-specific: Get allowed hosts from environment
 RAILWAY_STATIC_URL = env("RAILWAY_STATIC_URL", default="")  # noqa: F405
@@ -54,14 +54,6 @@ CORS_ALLOW_ALL_ORIGINS = False
 if RAILWAY_PUBLIC_DOMAIN:
     CORS_ALLOWED_ORIGINS.append(f"https://{RAILWAY_PUBLIC_DOMAIN}")  # noqa: F405
     CORS_ALLOWED_ORIGINS.append(f"https://{RAILWAY_PUBLIC_DOMAIN}.railway.app")  # noqa: F405
-
-# Logging - Add file handler for production
-LOGGING["handlers"]["file"] = {  # noqa: F405
-    "class": "logging.FileHandler",
-    "filename": BASE_DIR / "logs" / "django.log",  # noqa: F405
-    "formatter": "verbose",
-}
-LOGGING["root"]["handlers"] = ["console", "file"]  # noqa: F405
 
 # Sentry Configuration (optional)
 SENTRY_DSN = env("SENTRY_DSN", default=None)  # noqa: F405

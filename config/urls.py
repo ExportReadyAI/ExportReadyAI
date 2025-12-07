@@ -8,6 +8,7 @@ The `urlpatterns` list routes URLs to views. For more information please see:
 from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
+from django.http import JsonResponse
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularRedocView,
@@ -16,6 +17,11 @@ from drf_spectacular.views import (
 
 # Import health check views
 from core.health import health_check, readiness_check, liveness_check
+
+
+def root_view(request):
+    """Root endpoint for Railway health checks"""
+    return JsonResponse({"status": "ok", "service": "ExportReady API"})
 
 # Import master_data URL patterns
 from apps.master_data.urls import (
@@ -52,6 +58,8 @@ api_v1_patterns = [
 ]
 
 urlpatterns = [
+    # Root endpoint for Railway
+    path("", root_view, name="root"),
     # Health checks (no authentication required)
     path("health/", health_check, name="health_check"),
     path("ready/", readiness_check, name="readiness_check"),
