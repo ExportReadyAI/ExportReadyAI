@@ -1,0 +1,57 @@
+# Files to ignore during Railway deployment
+# This helps reduce build size and deployment time
+
+# Development files
+.git/
+.github/
+.vscode/
+.idea/
+
+# Documentation (optional - remove these lines if you want docs in production)
+*.md
+!RAILWAY_DEPLOYMENT_GUIDE.md
+!RAILWAY_QUICK_START.md
+
+# Tests
+tests/
+*/tests/
+test_*.py
+*_test.py
+conftest.py
+pytest.ini
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Development requirements
+requirements/development.txt
+requirements/test.txt
+
+# Local database
+*.sqlite3
+db.sqlite3
+
+# Environment files (use Railway Variables instead)
+.env
+.env.*
+!.env.example
+
+# Postman collections (API testing)
+*.postman_collection.json
+
+# Media files (use cloud storage instead)
+media/
+
+# Logs
+logs/
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# OS files
+.DS_Store
+Thumbs.db

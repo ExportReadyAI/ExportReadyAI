@@ -25,6 +25,8 @@ class Command(BaseCommand):
             {"country_code": "GB", "country_name": "United Kingdom", "region": "Europe"},
             {"country_code": "NL", "country_name": "Netherlands", "region": "Europe"},
             {"country_code": "AE", "country_name": "United Arab Emirates", "region": "Middle East"},
+            {"country_code": "TH", "country_name": "Thailand", "region": "Asia"},
+            {"country_code": "BN", "country_name": "Brunei Darussalam", "region": "Asia"},
         ]
 
         # Create countries
@@ -194,6 +196,50 @@ class Command(BaseCommand):
                 "forbidden_keywords": "",
                 "required_specs": "ESMA Certification, Halal Certificate from approved body",
                 "description_rule": "Emirates Authority for Standardization requirements",
+            },
+            # Thailand
+            {
+                "country_code": "TH",
+                "rule_category": RuleCategory.INGREDIENT,
+                "forbidden_keywords": "Bahan Terlarang Thailand, Pewarna Sintetis Tertentu, Pengawet Berlebihan",
+                "required_specs": "",
+                "description_rule": "Thai FDA regulations on food additives and preservatives",
+            },
+            {
+                "country_code": "TH",
+                "rule_category": RuleCategory.LABELING,
+                "forbidden_keywords": "",
+                "required_specs": "Thai Language Label, FDA Registration Number, Allergen Info, Nutritional Facts",
+                "description_rule": "Labels must include Thai text and FDA registration",
+            },
+            {
+                "country_code": "TH",
+                "rule_category": RuleCategory.PHYSICAL,
+                "forbidden_keywords": "",
+                "required_specs": "Thai FDA Registration, TISI Standards (if applicable), Halal Certificate (if applicable)",
+                "description_rule": "Food products require Thai FDA registration before import",
+            },
+            # Brunei Darussalam
+            {
+                "country_code": "BN",
+                "rule_category": RuleCategory.INGREDIENT,
+                "forbidden_keywords": "Babi, Alkohol, Gelatin Non-Halal, Lemak Hewani Non-Halal, Bahan Non-Halal",
+                "required_specs": "",
+                "description_rule": "All food products must be certified Halal - Brunei is a strict Halal country",
+            },
+            {
+                "country_code": "BN",
+                "rule_category": RuleCategory.LABELING,
+                "forbidden_keywords": "",
+                "required_specs": "Halal Logo (BKMM or JAKIM), Malay/English Label, Expiry Date, Manufacturing Date, Country of Origin",
+                "description_rule": "Labels must display recognized Halal certification logo and bilingual text",
+            },
+            {
+                "country_code": "BN",
+                "rule_category": RuleCategory.PHYSICAL,
+                "forbidden_keywords": "",
+                "required_specs": "Halal Certificate (BKMM Brunei or JAKIM Malaysia), Import License, Phytosanitary Certificate (for plant products)",
+                "description_rule": "Halal certification from approved Islamic bodies is mandatory for all food imports",
             },
         ]
 

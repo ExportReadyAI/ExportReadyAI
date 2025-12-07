@@ -14,6 +14,9 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+# Import health check views
+from core.health import health_check, readiness_check, liveness_check
+
 # Import master_data URL patterns
 from apps.master_data.urls import (
     admin_country_urlpatterns,
@@ -49,6 +52,10 @@ api_v1_patterns = [
 ]
 
 urlpatterns = [
+    # Health checks (no authentication required)
+    path("health/", health_check, name="health_check"),
+    path("ready/", readiness_check, name="readiness_check"),
+    path("alive/", liveness_check, name="liveness_check"),
     # Admin
     path("admin/", admin.site.urls),
     # API v1
