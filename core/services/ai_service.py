@@ -327,3 +327,95 @@ ATURAN:
             "sku_generated": sku,
             "hs_code_from_ai": hs_from_ai,  # Status apakah HS code dari AI atau fallback
         }
+
+    def get_market_intelligence(
+        self,
+        product_name: str,
+        description: str,
+        material_composition: str,
+        category: str = "",
+        current_price_usd: float = None,
+        production_capacity: int = None,
+    ) -> Dict:
+        """
+        AI Market Intelligence - Get market analysis and country recommendations.
+        
+        Uses the same _call_ai method that works for product enrichment.
+        
+        Returns:
+            Dict with market intelligence data
+        """
+        import json
+        import re
+        
+        # Validate and sanitize inputs
+        product_name = str(product_name or "").strip()[:200]
+        description = str(description or "").strip()[:500]
+        material_composition = str(material_composition or "").strip()[:200]
+        category = str(category or "").strip()[:100]
+        
+        system_prompt = """Kamu adalah ahli market intelligence dan perdagangan internasional.
+Tugasmu adalah menganalisis produk dan memberikan rekomendasi pasar ekspor yang tepat.
+
+ATURAN:
+- Berikan rekomendasi berdasarkan data tren pasar terkini
+- Pertimbangkan cultural preferences, regulasi, dan demand
+- Sertakan alasan konkret untuk setiap rekomendasi
+- Fokus pada pasar yang realistis untuk UMKM Indonesia
+- Output HARUS dalam format JSON yang valid"""
+
+        # Build prompt with proper escaping
+        price_str = f"${current_price_usd:.2f}" if current_price_usd else "Belum ditentukan"
+        capacity_str = f"{production_capacity} unit/bulan" if production_capacity else "N/A"
+        
+        prompt_parts = [
+            "Analisis produk berikut dan berikan market intelligence:",
+            "",
+            "INFORMASI PRODUK:",
+            f"- Nama Produk: {product_name}",
+            f"- Deskripsi: {description}",
+            f"- Material: {material_composition}",
+            f"- Kategori: {category}",
+            f"- Harga Saat Ini (USD): {price_str}",
+            f"- Kapasitas Produksi: {capacity_str}",
+            "",
+            "OUTPUT FORMAT (dalam JSON):",
+            '{"recommended_countries": [{"country": "Country Name", "country_code": "XX", "score": 85, "reason": "Alasan", "market_size": "Large/Medium/Small", "competition_level": "High/Medium/Low", "suggested_price_range": "$XX - $XX", "entry_strategy": "Strategi"}], "countries_to_avoid": [{"country": "Country Name", "country_code": "XX", "reason": "Alasan"}], "market_trends": ["Trend 1", "Trend 2"], "competitive_landscape": "Analisis", "growth_opportunities": ["Opportunity 1"], "risks_and_challenges": ["Risk 1"], "overall_recommendation": "Rekomendasi"}',
+            "",
+            "Berikan minimal 3 negara rekomendasi dan 2 negara yang sebaiknya dihindari.",
+            "Output dalam format JSON yang valid."
+        ]
+        
+        prompt = "\n".join(prompt_parts)
+
+        try:
+            # Use the same _call_ai that works for product enrichment
+            response = self._call_ai(prompt, system_prompt)
+
+            # Extract JSON from response
+            json_match = re.search(r'\{[\s\S]*\}', response)
+            if json_match:
+                result = json.loads(json_match.group())
+                return {
+                    "success": True,
+                    "data": result
+                }
+
+            return {
+                "success": False,
+                "error": "Failed to parse market intelligence response",
+                "raw_response": response
+            }
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse market intelligence JSON: {e}")
+            return {
+                "success": False,
+                "error": "Failed to parse AI response"
+            }
+        except Exception as e:
+            logger.error(f"Error getting market intelligence: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }

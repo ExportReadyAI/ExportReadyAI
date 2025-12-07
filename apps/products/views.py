@@ -283,39 +283,60 @@ class ProductMarketIntelligenceView(APIView):
         production_capacity = request.data.get("production_capacity")
 
         try:
-            ai_service = CatalogAIService()
+            # Use the same KolosalAIService that works for product enrich
+            ai_service = KolosalAIService()
             result = ai_service.get_market_intelligence(
                 product_name=product.name_local,
                 description=product.description_local,
                 material_composition=product.material_composition,
+                category=str(product.category_id) if product.category_id else "",
                 current_price_usd=current_price_usd,
                 production_capacity=production_capacity
             )
 
             if not result.get("success"):
+                logger.error(f"Market intelligence generation failed: {result.get('error')}")
+                logger.error(f"Raw response: {result.get('raw_response', 'N/A')}")
                 return Response({
                     "success": False,
                     "message": result.get("error", "Failed to generate market intelligence")
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-            data = result["data"]
+            data = result.get("data")
+            if not data:
+                logger.error("Market intelligence result has no data")
+                return Response({
+                    "success": False,
+                    "message": "AI returned empty data"
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            logger.info(f"Market intelligence data received, saving to database...")
+            logger.debug(f"Data keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
 
             # Save to database
-            mi = ProductMarketIntelligence.objects.create(
-                product=product,
-                recommended_countries=data.get("recommended_countries", []),
-                countries_to_avoid=data.get("countries_to_avoid", []),
-                market_trends=data.get("market_trends", []),
-                competitive_landscape=data.get("competitive_landscape", ""),
-                growth_opportunities=data.get("growth_opportunities", []),
-                risks_and_challenges=data.get("risks_and_challenges", []),
-                overall_recommendation=data.get("overall_recommendation", "")
-            )
+            try:
+                mi = ProductMarketIntelligence.objects.create(
+                    product=product,
+                    recommended_countries=data.get("recommended_countries", []),
+                    countries_to_avoid=data.get("countries_to_avoid", []),
+                    market_trends=data.get("market_trends", []),
+                    competitive_landscape=data.get("competitive_landscape", ""),
+                    growth_opportunities=data.get("growth_opportunities", []),
+                    risks_and_challenges=data.get("risks_and_challenges", []),
+                    overall_recommendation=data.get("overall_recommendation", "")
+                )
+                logger.info(f"Market intelligence saved to database with ID: {mi.id}")
+            except Exception as db_error:
+                logger.error(f"Error saving market intelligence to database: {db_error}", exc_info=True)
+                return Response({
+                    "success": False,
+                    "message": f"Failed to save market intelligence: {str(db_error)}"
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-            return Response({
-                "success": True,
-                "message": "Market intelligence generated and saved",
-                "data": {
+            # Build response - ensure datetime is serialized properly
+            try:
+                from django.utils import timezone
+                response_data = {
                     "id": mi.id,
                     "product_id": product.id,
                     "recommended_countries": mi.recommended_countries,
@@ -325,9 +346,26 @@ class ProductMarketIntelligenceView(APIView):
                     "growth_opportunities": mi.growth_opportunities,
                     "risks_and_challenges": mi.risks_and_challenges,
                     "overall_recommendation": mi.overall_recommendation,
-                    "generated_at": mi.generated_at
+                    "generated_at": mi.generated_at.isoformat() if mi.generated_at else None
                 }
-            }, status=status.HTTP_201_CREATED)
+                logger.info(f"Returning success response for market intelligence ID: {mi.id}")
+                logger.debug(f"Response data keys: {list(response_data.keys())}")
+                return Response({
+                    "success": True,
+                    "message": "Market intelligence generated and saved",
+                    "data": response_data
+                }, status=status.HTTP_201_CREATED)
+            except Exception as response_error:
+                logger.error(f"Error building response: {response_error}", exc_info=True)
+                # Even if response fails, data is saved, so return it
+                return Response({
+                    "success": True,
+                    "message": "Market intelligence generated and saved (response formatting issue)",
+                    "data": {
+                        "id": mi.id,
+                        "product_id": product.id
+                    }
+                }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             logger.error(f"Error generating market intelligence: {e}")
