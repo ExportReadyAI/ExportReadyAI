@@ -241,20 +241,43 @@ class ProductMarketIntelligenceView(APIView):
             )
 
         if hasattr(product, 'market_intelligence'):
+            from apps.forwarders.services import ForwarderRecommendationService
+            
             mi = product.market_intelligence
+            
+            # Enrich recommended_countries with forwarder recommendations
+            enriched_countries = []
+            for country in mi.recommended_countries:
+                country_code = country.get("country_code", "")
+                
+                # Get forwarder recommendations for this country (top 3, sorted by average_rating)
+                forwarders = []
+                if country_code:
+                    forwarders = ForwarderRecommendationService.get_recommendations(
+                        destination_country=country_code,
+                        limit=3
+                    )
+                
+                # Add forwarders to country object
+                enriched_country = {
+                    **country,
+                    "forwarders": forwarders if forwarders else []
+                }
+                enriched_countries.append(enriched_country)
+            
             return Response({
                 "success": True,
                 "data": {
                     "id": mi.id,
                     "product_id": product.id,
-                    "recommended_countries": mi.recommended_countries,
+                    "recommended_countries": enriched_countries,
                     "countries_to_avoid": mi.countries_to_avoid,
                     "market_trends": mi.market_trends,
                     "competitive_landscape": mi.competitive_landscape,
                     "growth_opportunities": mi.growth_opportunities,
                     "risks_and_challenges": mi.risks_and_challenges,
                     "overall_recommendation": mi.overall_recommendation,
-                    "generated_at": mi.generated_at
+                    "generated_at": mi.generated_at.isoformat() if mi.generated_at else None
                 }
             })
 

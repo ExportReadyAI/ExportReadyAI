@@ -85,24 +85,44 @@ class ForwarderRecommendationService:
         """
         Get recommended forwarders for a destination country.
         
-        Input: destination_country (from ExportAnalysis or Costing)
-        Query: ForwarderProfile WHERE destination IN specialization_routes
-        Sort by: average_rating DESC, total_reviews DESC
-        Return top 5 forwarders
-        Output: Array of {id, company_name, rating, contact_info}
+        Logic:
+        1. Extract destinations from forwarder routes (e.g., "ID-JP" → "JP")
+        2. Match extracted destinations with the recommended country code
+        
+        Input: destination_country (country code like "JP", "US", "SG")
+        Query: ForwarderProfile WHERE any route destination matches destination_country
+        Sort by: average_rating DESC
+        Return top N forwarders (default 5, can be customized)
+        Output: Array of forwarder details with all fields
         """
-        # Build route pattern (e.g., 'ID-US' for destination 'US')
-        route_pattern = f"ID-{destination_country}"
+        # Get all forwarders and filter by matching destinations
+        all_forwarders = ForwarderProfile.objects.all().order_by("-average_rating")
         
-        # Query forwarders with matching routes
-        # Note: JSONB contains check - PostgreSQL specific
-        # For SQLite/other DBs, we'll use a simpler approach
-        forwarders = ForwarderProfile.objects.filter(
-            specialization_routes__contains=[route_pattern]
-        ).order_by("-average_rating", "-total_reviews")[:limit]
+        matching_forwarders = []
+        for forwarder in all_forwarders:
+            # Extract destinations from specialization_routes
+            # Routes format: ["ID-JP", "ID-US", "ID-SG"] → destinations: ["JP", "US", "SG"]
+            destinations = []
+            for route in forwarder.specialization_routes:
+                if isinstance(route, str) and "-" in route:
+                    # Split route (e.g., "ID-JP" → ["ID", "JP"])
+                    parts = route.split("-", 1)
+                    if len(parts) == 2:
+                        destination = parts[1].strip().upper()  # Take destination part (e.g., "JP")
+                        destinations.append(destination)
+            
+            # Check if the recommended country code matches any extracted destination
+            destination_country_upper = destination_country.strip().upper()
+            if destination_country_upper in destinations:
+                matching_forwarders.append(forwarder)
+                
+                # Stop when we have enough forwarders
+                if len(matching_forwarders) >= limit:
+                    break
         
+        # Build recommendations list
         recommendations = []
-        for forwarder in forwarders:
+        for forwarder in matching_forwarders:
             recommendations.append({
                 "id": forwarder.id,
                 "company_name": forwarder.company_name,

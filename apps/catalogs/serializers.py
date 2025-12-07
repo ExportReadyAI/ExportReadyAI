@@ -425,3 +425,55 @@ class PublicCatalogSerializer(serializers.ModelSerializer):
             "variant_types",
             "published_at",
         )
+
+
+class ForwarderCatalogSerializer(serializers.ModelSerializer):
+    """
+    Serializer for forwarder-facing catalog views.
+    Includes UMKM contact information for logistics coordination.
+    """
+
+    images = CatalogImageSerializer(many=True, read_only=True)
+    variant_types = CatalogVariantTypeSerializer(many=True, read_only=True)
+    seller_name = serializers.CharField(
+        source="product.business.company_name",
+        read_only=True
+    )
+    seller_address = serializers.CharField(
+        source="product.business.address",
+        read_only=True
+    )
+    seller_email = serializers.EmailField(
+        source="product.business.user.email",
+        read_only=True
+    )
+    seller_full_name = serializers.CharField(
+        source="product.business.user.full_name",
+        read_only=True
+    )
+
+    class Meta:
+        model = ProductCatalog
+        fields = (
+            "id",
+            "display_name",
+            "marketing_description",
+            "export_description",
+            "technical_specs",
+            "safety_info",
+            "min_order_quantity",
+            "unit_type",
+            "base_price_exw",
+            "base_price_fob",
+            "base_price_cif",
+            "lead_time_days",
+            "available_stock",
+            "tags",
+            "seller_name",
+            "seller_address",
+            "seller_email",
+            "seller_full_name",
+            "images",
+            "variant_types",
+            "published_at",
+        )
