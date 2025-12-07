@@ -40,6 +40,8 @@ api_v1_patterns = [
     path("buyers/", include("apps.buyer_requests.urls")),
     path("buyer-requests/", include("apps.buyer_requests.legacy_urls")),  # Backward compatibility
     path("forwarders/", include("apps.forwarders.urls")),
+    # Module 7: Educational Materials
+    path("educational/", include("apps.educational_materials.urls")),
     # Product Catalogs
     path("catalogs/", include("apps.catalogs.urls")),
 ]

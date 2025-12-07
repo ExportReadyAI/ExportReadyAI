@@ -64,6 +64,7 @@ LOCAL_APPS = [
     "apps.catalogs",
     "apps.buyer_requests",
     "apps.forwarders",
+    "apps.educational_materials",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -261,4 +262,11 @@ LOGGING = {
 KOLOSAL_API_KEY = env("KOLOSAL_API_KEY", default="")
 KOLOSAL_BASE_URL = env("KOLOSAL_BASE_URL", default="https://api.kolosal.ai/v1")
 KOLOSAL_MODEL = env("KOLOSAL_MODEL", default="Claude Sonnet 4.5")
+
+# ============================================================================
+# Supabase Storage Configuration (Module 7: Educational Materials)
+# ============================================================================
+SUPABASE_URL = env("SUPABASE_URL", default="")
+SUPABASE_ANON_KEY = env("SUPABASE_ANON_KEY", default="")
+SUPABASE_STORAGE_BUCKET = env("SUPABASE_STORAGE_BUCKET", default="educational-materials")
 
