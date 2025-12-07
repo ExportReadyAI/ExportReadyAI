@@ -304,6 +304,7 @@ class DashboardSummaryView(APIView):
             ProductPricingResult,
         )
         from apps.buyer_requests.models import BuyerRequest
+        from apps.educational_materials.models import Module, Article
 
         user = request.user
 
@@ -323,37 +324,27 @@ class DashboardSummaryView(APIView):
                     is_published=True
                 ).count()
 
-                # Count products with AI features
-                products_with_enrichment = Product.objects.filter(
+                # Products without catalog (actionable)
+                products_without_catalog = Product.objects.filter(
                     business=business_profile,
-                    enrichment__isnull=False
-                ).count()
-                products_with_market_intel = ProductMarketIntelligence.objects.filter(
-                    product__business=business_profile
-                ).count()
-                products_with_pricing = ProductPricingResult.objects.filter(
-                    product__business=business_profile
+                    catalog__isnull=True
                 ).count()
 
                 # Count all open buyer requests (potential opportunities for UMKM)
-                # UMKM can see all open requests and decide if they want to match
                 buyer_requests_count = BuyerRequest.objects.filter(
                     status="Open"
                 ).count()
                 pending_requests_count = buyer_requests_count
 
+                # Educational materials available
+                total_modules = Module.objects.count()
+                total_articles = Article.objects.count()
+
                 summary = {
                     "has_business_profile": True,
-                    "business_profile": {
-                        "id": business_profile.id,
-                        "company_name": business_profile.company_name,
-                        "certification_count": business_profile.certification_count,
-                    },
                     "products": {
                         "total": product_count,
-                        "with_enrichment": products_with_enrichment,
-                        "with_market_intelligence": products_with_market_intel,
-                        "with_pricing": products_with_pricing,
+                        "without_catalog": products_without_catalog,
                     },
                     "catalogs": {
                         "total": catalog_count,
@@ -364,15 +355,25 @@ class DashboardSummaryView(APIView):
                         "total": buyer_requests_count,
                         "pending": pending_requests_count,
                     },
+                    "educational_materials": {
+                        "total_modules": total_modules,
+                        "total_articles": total_articles,
+                    },
                 }
             else:
                 # No business profile yet
+                total_modules = Module.objects.count()
+                total_articles = Article.objects.count()
+
                 summary = {
                     "has_business_profile": False,
-                    "business_profile": None,
-                    "products": {"total": 0, "with_enrichment": 0, "with_market_intelligence": 0, "with_pricing": 0},
+                    "products": {"total": 0, "without_catalog": 0},
                     "catalogs": {"total": 0, "published": 0, "draft": 0},
                     "buyer_requests": {"total": 0, "pending": 0},
+                    "educational_materials": {
+                        "total_modules": total_modules,
+                        "total_articles": total_articles,
+                    },
                 }
 
         else:
@@ -391,6 +392,10 @@ class DashboardSummaryView(APIView):
             total_enrichments = Product.objects.filter(enrichment__isnull=False).count()
             total_market_intel = ProductMarketIntelligence.objects.count()
             total_pricing = ProductPricingResult.objects.count()
+
+            # Educational materials stats
+            total_modules = Module.objects.count()
+            total_articles = Article.objects.count()
 
             summary = {
                 "users": {
@@ -415,6 +420,10 @@ class DashboardSummaryView(APIView):
                 },
                 "buyer_requests": {
                     "total": total_buyer_requests,
+                },
+                "educational_materials": {
+                    "total_modules": total_modules,
+                    "total_articles": total_articles,
                 },
             }
 

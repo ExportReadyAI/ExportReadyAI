@@ -32,16 +32,9 @@ Return summary statistics untuk dashboard, berbeda berdasarkan role user.
   "message": "Dashboard summary retrieved successfully",
   "data": {
     "has_business_profile": true,
-    "business_profile": {
-      "id": 15,
-      "company_name": "PT Demo Kerajinan Indonesia",
-      "certification_count": 1
-    },
     "products": {
       "total": 3,
-      "with_enrichment": 1,
-      "with_market_intelligence": 2,
-      "with_pricing": 1
+      "without_catalog": 1
     },
     "catalogs": {
       "total": 2,
@@ -51,6 +44,10 @@ Return summary statistics untuk dashboard, berbeda berdasarkan role user.
     "buyer_requests": {
       "total": 3,
       "pending": 3
+    },
+    "educational_materials": {
+      "total_modules": 3,
+      "total_articles": 8
     }
   }
 }
@@ -61,18 +58,15 @@ Return summary statistics untuk dashboard, berbeda berdasarkan role user.
 | Field | Type | Description |
 |-------|------|-------------|
 | has_business_profile | boolean | Apakah user sudah punya business profile |
-| business_profile.id | int | ID business profile |
-| business_profile.company_name | string | Nama perusahaan |
-| business_profile.certification_count | int | Jumlah sertifikasi (Halal, ISO, HACCP, SVLK) |
 | products.total | int | Total produk yang dimiliki |
-| products.with_enrichment | int | Produk yang sudah di-enrich dengan AI |
-| products.with_market_intelligence | int | Produk yang sudah punya market intelligence |
-| products.with_pricing | int | Produk yang sudah punya pricing analysis |
+| products.without_catalog | int | Produk yang belum punya catalog (actionable!) |
 | catalogs.total | int | Total catalog |
 | catalogs.published | int | Catalog yang sudah publish |
 | catalogs.draft | int | Catalog yang masih draft |
 | buyer_requests.total | int | Total buyer requests yang bisa dilihat |
 | buyer_requests.pending | int | Buyer requests yang masih open/pending |
+| educational_materials.total_modules | int | Total modul edukasi tersedia |
+| educational_materials.total_articles | int | Total artikel edukasi tersedia |
 
 ### Jika UMKM Belum Punya Business Profile
 
@@ -82,12 +76,9 @@ Return summary statistics untuk dashboard, berbeda berdasarkan role user.
   "message": "Dashboard summary retrieved successfully",
   "data": {
     "has_business_profile": false,
-    "business_profile": null,
     "products": {
       "total": 0,
-      "with_enrichment": 0,
-      "with_market_intelligence": 0,
-      "with_pricing": 0
+      "without_catalog": 0
     },
     "catalogs": {
       "total": 0,
@@ -97,6 +88,10 @@ Return summary statistics untuk dashboard, berbeda berdasarkan role user.
     "buyer_requests": {
       "total": 0,
       "pending": 0
+    },
+    "educational_materials": {
+      "total_modules": 3,
+      "total_articles": 8
     }
   }
 }
@@ -133,6 +128,10 @@ Return summary statistics untuk dashboard, berbeda berdasarkan role user.
     },
     "buyer_requests": {
       "total": 8
+    },
+    "educational_materials": {
+      "total_modules": 5,
+      "total_articles": 25
     }
   }
 }
@@ -155,6 +154,8 @@ Return summary statistics untuk dashboard, berbeda berdasarkan role user.
 | catalogs.published | int | Catalog yang published |
 | catalogs.draft | int | Catalog yang masih draft |
 | buyer_requests.total | int | Total buyer requests di sistem |
+| educational_materials.total_modules | int | Total modul edukasi |
+| educational_materials.total_articles | int | Total artikel edukasi |
 
 ---
 
@@ -179,29 +180,25 @@ if (!data.data.has_business_profile) {
 }
 ```
 
-### 2. Display Dashboard Cards (UMKM)
+### 2. Display Dashboard Cards (UMKM) - 4 Cards
 
 ```jsx
 // React example
 function UMKMDashboard({ data }) {
   return (
     <div className="dashboard-grid">
-      {/* Business Profile Card */}
-      <Card>
-        <h3>{data.business_profile.company_name}</h3>
-        <p>Sertifikasi: {data.business_profile.certification_count}</p>
-      </Card>
-
-      {/* Products Card */}
+      {/* Card 1: Products */}
       <Card>
         <h3>Produk</h3>
         <Stat label="Total" value={data.products.total} />
-        <Stat label="AI Enriched" value={data.products.with_enrichment} />
-        <Stat label="Market Intel" value={data.products.with_market_intelligence} />
-        <Stat label="Pricing" value={data.products.with_pricing} />
+        {data.products.without_catalog > 0 && (
+          <Alert type="warning">
+            {data.products.without_catalog} produk belum punya catalog
+          </Alert>
+        )}
       </Card>
 
-      {/* Catalogs Card */}
+      {/* Card 2: Catalogs */}
       <Card>
         <h3>Katalog</h3>
         <Stat label="Total" value={data.catalogs.total} />
@@ -209,10 +206,20 @@ function UMKMDashboard({ data }) {
         <Stat label="Draft" value={data.catalogs.draft} />
       </Card>
 
-      {/* Buyer Requests Card */}
+      {/* Card 3: Buyer Requests */}
       <Card>
         <h3>Buyer Requests</h3>
         <Stat label="Open" value={data.buyer_requests.pending} />
+      </Card>
+
+      {/* Card 4: Educational Materials */}
+      <Card>
+        <h3>Materi Edukasi</h3>
+        <Stat label="Modules" value={data.educational_materials.total_modules} />
+        <Stat label="Articles" value={data.educational_materials.total_articles} />
+        <Button onClick={() => navigate('/educational')}>
+          Pelajari Sekarang
+        </Button>
       </Card>
     </div>
   );
@@ -253,6 +260,16 @@ function AdminDashboard({ data }) {
         <h3>Catalogs</h3>
         <Stat label="Total" value={data.catalogs.total} />
         <Stat label="Published" value={data.catalogs.published} />
+      </Card>
+
+      {/* Educational Materials Card */}
+      <Card>
+        <h3>Materi Edukasi</h3>
+        <Stat label="Modules" value={data.educational_materials.total_modules} />
+        <Stat label="Articles" value={data.educational_materials.total_articles} />
+        <Button onClick={() => navigate('/admin/educational')}>
+          Manage Materi
+        </Button>
       </Card>
     </div>
   );
@@ -304,13 +321,12 @@ Jika user bukan UMKM atau Admin:
 
 ## Notes
 
-1. **UMKM buyer_requests**: Menampilkan semua buyer requests yang masih Open (status="Open"), karena UMKM bisa melihat dan memilih request mana yang ingin mereka respons.
+1. **UMKM `products.without_catalog`**: Ini adalah actionable metric - menunjukkan produk yang belum dijadikan catalog. Frontend bisa highlight ini dan arahkan user untuk membuat catalog.
 
-2. **AI Features Count**:
-   - `with_enrichment`: Produk yang sudah di-generate deskripsi export dengan AI
-   - `with_market_intelligence`: Produk yang sudah ada analisis market intelligence
-   - `with_pricing`: Produk yang sudah ada analisis pricing
+2. **UMKM `buyer_requests`**: Menampilkan semua buyer requests yang masih Open (status="Open"), karena UMKM bisa melihat dan memilih request mana yang ingin mereka respons.
 
-3. **Caching**: Frontend disarankan untuk cache response ini selama 1-5 menit untuk mengurangi load.
+3. **Admin `educational_materials`**: Admin dapat melihat jumlah modul dan artikel yang ada, dan bisa langsung navigate ke halaman manage materi edukasi.
 
-4. **Refresh**: Panggil endpoint ini setiap kali user masuk ke dashboard atau setelah melakukan aksi yang mengubah data (create product, publish catalog, dll).
+4. **Caching**: Frontend disarankan untuk cache response ini selama 1-5 menit untuk mengurangi load.
+
+5. **Refresh**: Panggil endpoint ini setiap kali user masuk ke dashboard atau setelah melakukan aksi yang mengubah data (create product, publish catalog, dll).
