@@ -44,6 +44,8 @@ api_v1_patterns = [
     path("educational/", include("apps.educational_materials.urls")),
     # Product Catalogs
     path("catalogs/", include("apps.catalogs.urls")),
+    # Chatbot
+    path("chat/", include("apps.chatbot.urls")),
 ]
 
 urlpatterns = [
