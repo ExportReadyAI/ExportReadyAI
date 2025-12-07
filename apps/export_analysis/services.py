@@ -432,6 +432,9 @@ Berikan rekomendasi dalam format numbered list:"""
     ) -> dict:
         """
         Full compliance analysis - combines all AI compliance checkers.
+        
+        Note: This method analyzes the CURRENT product data. The snapshot
+        should be created by the caller (view/API) when storing the analysis.
 
         Args:
             product: Product model instance
@@ -459,6 +462,58 @@ Berikan rekomendasi dalam format numbered list:"""
         # Check packaging compliance
         packaging_issues = self.check_packaging_compliance(
             packaging_type=product.packaging_type or "",
+            target_country_code=target_country_code,
+        )
+        all_issues.extend(packaging_issues)
+
+        # Calculate readiness score and status grade
+        readiness_score, status_grade = self.calculate_readiness_score(all_issues)
+
+        # Generate recommendations
+        recommendations = self.generate_recommendations(all_issues)
+
+        return {
+            "compliance_issues": all_issues,
+            "readiness_score": readiness_score,
+            "status_grade": status_grade,
+            "recommendations": recommendations,
+        }
+    
+    def analyze_product_from_snapshot(
+        self,
+        product_snapshot: dict,
+        target_country_code: str,
+    ) -> dict:
+        """
+        Run compliance analysis using product snapshot data.
+        This allows analyzing historical product states.
+
+        Args:
+            product_snapshot: Product snapshot dictionary
+            target_country_code: Target country ISO code
+
+        Returns:
+            Dictionary with analysis results
+        """
+        all_issues = []
+
+        # Check ingredient compliance from snapshot
+        ingredient_issues = self.check_ingredient_compliance(
+            material_composition=product_snapshot.get("material_composition", ""),
+            target_country_code=target_country_code,
+        )
+        all_issues.extend(ingredient_issues)
+
+        # Check specification compliance from snapshot
+        spec_issues = self.check_specification_compliance(
+            quality_specs=product_snapshot.get("quality_specs", {}),
+            target_country_code=target_country_code,
+        )
+        all_issues.extend(spec_issues)
+
+        # Check packaging compliance from snapshot
+        packaging_issues = self.check_packaging_compliance(
+            packaging_type=product_snapshot.get("packaging_type", ""),
             target_country_code=target_country_code,
         )
         all_issues.extend(packaging_issues)
