@@ -447,18 +447,34 @@ class UMKMMatchedCatalogsView(APIView):
             product = catalog.product
             
             # 1. Category match (40%)
-            # Compare buyer's category request with product name and description
+            # Compare buyer's category request with product name, description, and catalog info
             category_match = False
             if buyer_request.product_category:
                 buyer_category_lower = buyer_request.product_category.lower()
                 product_name_lower = product.name_local.lower()
                 product_desc_lower = product.description_local.lower()
+                catalog_name_lower = catalog.display_name.lower()
+                catalog_desc_lower = (catalog.marketing_description or "").lower()
                 
-                # Check if category keywords appear in product name or description
-                if buyer_category_lower in product_name_lower or \
-                   buyer_category_lower in product_desc_lower or \
-                   product_name_lower in buyer_category_lower:
-                    match_score += 40
+                # Split category into keywords (e.g., "Makanan Olahan" -> ["makanan", "olahan"])
+                category_keywords = buyer_category_lower.split()
+                
+                # Check each keyword
+                matched_keyword_count = 0
+                for keyword in category_keywords:
+                    if len(keyword) >= 3:  # Only check meaningful keywords
+                        if keyword in product_name_lower or \
+                           keyword in product_desc_lower or \
+                           keyword in catalog_name_lower or \
+                           keyword in catalog_desc_lower:
+                            matched_keyword_count += 1
+                
+                # If at least half of the keywords match, consider it a category match
+                if matched_keyword_count > 0:
+                    # Score proportional to how many keywords matched
+                    keyword_ratio = matched_keyword_count / max(len(category_keywords), 1)
+                    category_score = int(40 * keyword_ratio)
+                    match_score += category_score
                     match_reasons.append(f"Kategori produk sesuai: {buyer_request.product_category}")
                     category_match = True
             
