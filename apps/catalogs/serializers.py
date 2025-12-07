@@ -136,6 +136,7 @@ class ProductCatalogListSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source="product.name_local", read_only=True)
     primary_image = serializers.SerializerMethodField()
     variant_type_count = serializers.SerializerMethodField()
+    has_ai_description = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductCatalog
@@ -154,6 +155,7 @@ class ProductCatalogListSerializer(serializers.ModelSerializer):
             "tags",
             "primary_image",
             "variant_type_count",
+            "has_ai_description",
             "updated_at",
         )
 
@@ -168,6 +170,10 @@ class ProductCatalogListSerializer(serializers.ModelSerializer):
     def get_variant_type_count(self, obj):
         """Get count of variant types"""
         return obj.variant_types.count()
+
+    def get_has_ai_description(self, obj):
+        """Check if catalog has AI-generated description"""
+        return bool(obj.export_description and obj.export_description.strip())
 
 
 class VariantOptionInputSerializer(serializers.Serializer):
