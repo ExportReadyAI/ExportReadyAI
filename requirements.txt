@@ -1,0 +1,5 @@
+# Railway deployment requirements
+# This file is required for Railway to detect Python project
+# Actual requirements are in requirements/production.txt
+
+-r requirements/production.txt
