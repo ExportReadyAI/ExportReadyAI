@@ -108,8 +108,6 @@ PUT/DELETE /api/v1/catalogs/{catalog_id}/variants/{variant_id}/
 | AI | Fungsi | Endpoint | Syarat |
 |----|--------|----------|--------|
 | AI 1 | Description Generator | `/catalogs/{id}/ai/description/` | Perlu Catalog |
-| AI 2 | Market Intelligence | `/products/{id}/ai/market-intelligence/` | Cukup Product |
-| AI 3 | Pricing Calculator | `/products/{id}/ai/pricing/` | Cukup Product |
 
 > **Penting:** AI 2 & AI 3 diakses via **Product**, tidak perlu buat Catalog dulu.
 
@@ -153,100 +151,6 @@ POST /api/v1/catalogs/{catalog_id}/ai/description/
 **Flow FE:**
 1. User klik "Get Recommendation" → `POST { }` → Tampilkan preview
 2. User review → klik "Accept" → `POST { "save_to_catalog": true }` → Simpan ke catalog
-
----
-
-### AI 2: Market Intelligence (via Product)
-Rekomendasi negara tujuan ekspor berdasarkan analisis produk.
-
-```
-GET /api/v1/products/{product_id}/ai/market-intelligence/
-```
-**Output:** Data market intelligence yang sudah ada (404 jika belum ada)
-
-```
-POST /api/v1/products/{product_id}/ai/market-intelligence/
-```
-**Input:**
-| Field | Type | Required |
-|-------|------|----------|
-| current_price_usd | decimal | No |
-| production_capacity | int | No |
-
-**Output:**
-```json
-{
-  "product_id": 35,
-  "recommended_countries": [
-    {
-      "country": "United States",
-      "country_code": "US",
-      "score": 92,
-      "reason": "...",
-      "market_size": "Large",
-      "competition_level": "Medium",
-      "suggested_price_range": "$25 - $45",
-      "entry_strategy": "..."
-    }
-  ],
-  "countries_to_avoid": [
-    { "country": "...", "country_code": "...", "reason": "..." }
-  ],
-  "market_trends": ["..."],
-  "competitive_landscape": "...",
-  "growth_opportunities": ["..."],
-  "risks_and_challenges": ["..."],
-  "overall_recommendation": "..."
-}
-```
-
-**Constraint:** 1 product = 1 market intelligence. POST kedua akan ditolak (400).
-
----
-
-### AI 3: Pricing Calculator (via Product)
-Kalkulasi harga EXW/FOB/CIF dengan insight AI.
-
-```
-GET /api/v1/products/{product_id}/ai/pricing/
-```
-**Output:** Data pricing yang sudah ada (404 jika belum ada)
-
-```
-POST /api/v1/products/{product_id}/ai/pricing/
-```
-**Input:**
-| Field | Type | Required |
-|-------|------|----------|
-| cogs_per_unit_idr | decimal | Yes |
-| target_margin_percent | decimal | Yes |
-| target_country_code | string | No (default: "US") |
-
-**Output:**
-```json
-{
-  "product_id": 35,
-  "cogs_per_unit_idr": 75000,
-  "target_margin_percent": 40,
-  "exchange_rate_used": 16679.21,
-  "exw_price_usd": 6.30,
-  "fob_price_usd": 6.80,
-  "cif_price_usd": 8.84,
-  "target_country_code": "US",
-  "pricing_insight": "AI analysis tentang kompetitivitas harga...",
-  "pricing_breakdown": {
-    "base_cost_idr": 75000,
-    "margin_amount_idr": 30000,
-    "total_idr": 105000,
-    "local_handling_estimate_usd": 0.50,
-    "shipping_estimate_usd": 2.04
-  }
-}
-```
-
-**Constraint:** 1 product = 1 pricing result. POST kedua akan ditolak (400).
-
----
 
 ## 5. Public Endpoints (No Auth)
 
