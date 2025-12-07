@@ -221,7 +221,18 @@ class CatalogDetailView(APIView):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_catalog(self, catalog_id, user):
-        """Helper to get catalog with ownership check"""
+        """Helper to get catalog with ownership check or published catalog for buyers"""
+        from apps.users.models import UserRole
+        
+        # If user is BUYER, allow access to published catalogs
+        if user.role == UserRole.BUYER:
+            return get_object_or_404(
+                ProductCatalog.objects.select_related("product").prefetch_related("images", "variant_types__options"),
+                id=catalog_id,
+                is_published=True,  # Buyers can only view published catalogs
+            )
+        
+        # For UMKM/others, check ownership
         return get_object_or_404(
             ProductCatalog.objects.select_related("product").prefetch_related("images", "variant_types__options"),
             id=catalog_id,
@@ -245,6 +256,15 @@ class CatalogDetailView(APIView):
         New images are uploaded to Supabase Storage and added to existing images.
         """
         from .services import get_catalog_storage_service
+        from apps.users.models import UserRole
+        from core.responses import error_response
+        
+        # Buyer cannot edit catalogs
+        if request.user.role == UserRole.BUYER:
+            return error_response(
+                message="Buyers cannot edit catalogs",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
         
         catalog = self.get_catalog(catalog_id, request.user)
 
@@ -340,6 +360,16 @@ class CatalogDetailView(APIView):
 
     def delete(self, request, catalog_id):
         """Delete catalog"""
+        from apps.users.models import UserRole
+        from core.responses import error_response
+        
+        # Buyer cannot delete catalogs
+        if request.user.role == UserRole.BUYER:
+            return error_response(
+                message="Buyers cannot delete catalogs",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
         catalog = self.get_catalog(catalog_id, request.user)
         catalog_id = catalog.id
         catalog.delete()
