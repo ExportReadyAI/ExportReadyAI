@@ -470,7 +470,7 @@ class PublicCatalogDetailView(APIView):
 # AI FEATURE VIEWS
 # ============================================================
 
-from .models import CatalogMarketIntelligence, CatalogPricingResult
+from .models import ProductMarketIntelligence, ProductPricingResult
 from .services import get_catalog_ai_service
 
 
@@ -570,8 +570,8 @@ class CatalogAIDescriptionView(APIView):
 
 class CatalogMarketIntelligenceView(APIView):
     """
-    GET: Get existing market intelligence for a catalog
-    POST: Generate market intelligence using AI (one-time, saved to DB)
+    GET: Get existing market intelligence for a product (via catalog)
+    POST: Generate market intelligence using AI (one-time per PRODUCT, saved to DB)
     """
 
     permission_classes = [IsAuthenticated]
@@ -583,14 +583,17 @@ class CatalogMarketIntelligenceView(APIView):
             id=catalog_id,
             product__business__user=request.user,
         )
+        product = catalog.product
 
-        if hasattr(catalog, 'market_intelligence'):
-            mi = catalog.market_intelligence
+        # Check on PRODUCT level, not catalog
+        if hasattr(product, 'market_intelligence'):
+            mi = product.market_intelligence
             return Response({
                 "success": True,
                 "message": "Market intelligence retrieved",
                 "data": {
                     "id": mi.id,
+                    "product_id": product.id,
                     "recommended_countries": mi.recommended_countries,
                     "countries_to_avoid": mi.countries_to_avoid,
                     "market_trends": mi.market_trends,
@@ -604,7 +607,7 @@ class CatalogMarketIntelligenceView(APIView):
 
         return Response({
             "success": False,
-            "message": "Market intelligence not yet generated for this catalog. Use POST to generate.",
+            "message": "Market intelligence not yet generated for this product. Use POST to generate.",
         }, status=status.HTTP_404_NOT_FOUND)
 
     def post(self, request, catalog_id):
@@ -614,19 +617,19 @@ class CatalogMarketIntelligenceView(APIView):
             id=catalog_id,
             product__business__user=request.user,
         )
+        product = catalog.product
 
-        # Check if already exists
-        if hasattr(catalog, 'market_intelligence'):
+        # Check if already exists on PRODUCT level
+        if hasattr(product, 'market_intelligence'):
             return Response({
                 "success": False,
-                "message": "Market intelligence already exists for this catalog. Each catalog can only have one market intelligence result.",
+                "message": "Market intelligence already exists for this product. Each product can only have one market intelligence result.",
                 "existing_data": {
-                    "id": catalog.market_intelligence.id,
-                    "generated_at": catalog.market_intelligence.generated_at,
+                    "id": product.market_intelligence.id,
+                    "product_id": product.id,
+                    "generated_at": product.market_intelligence.generated_at,
                 }
             }, status=status.HTTP_400_BAD_REQUEST)
-
-        product = catalog.product
 
         try:
             ai_service = get_catalog_ai_service()
@@ -642,9 +645,9 @@ class CatalogMarketIntelligenceView(APIView):
             if result.get("success"):
                 data = result.get("data", {})
 
-                # Save to database
-                mi = CatalogMarketIntelligence.objects.create(
-                    catalog=catalog,
+                # Save to database - linked to PRODUCT
+                mi = ProductMarketIntelligence.objects.create(
+                    product=product,
                     recommended_countries=data.get("recommended_countries", []),
                     countries_to_avoid=data.get("countries_to_avoid", []),
                     market_trends=data.get("market_trends", []),
@@ -659,6 +662,7 @@ class CatalogMarketIntelligenceView(APIView):
                     "message": "Market intelligence generated and saved",
                     "data": {
                         "id": mi.id,
+                        "product_id": product.id,
                         "recommended_countries": mi.recommended_countries,
                         "countries_to_avoid": mi.countries_to_avoid,
                         "market_trends": mi.market_trends,
@@ -685,8 +689,8 @@ class CatalogMarketIntelligenceView(APIView):
 
 class CatalogPricingView(APIView):
     """
-    GET: Get existing pricing result for a catalog
-    POST: Generate pricing using AI (one-time, saved to DB)
+    GET: Get existing pricing result for a product (via catalog)
+    POST: Generate pricing using AI (one-time per PRODUCT, saved to DB)
     """
 
     permission_classes = [IsAuthenticated]
@@ -698,14 +702,17 @@ class CatalogPricingView(APIView):
             id=catalog_id,
             product__business__user=request.user,
         )
+        product = catalog.product
 
-        if hasattr(catalog, 'pricing_result'):
-            pr = catalog.pricing_result
+        # Check on PRODUCT level, not catalog
+        if hasattr(product, 'pricing_result'):
+            pr = product.pricing_result
             return Response({
                 "success": True,
                 "message": "Pricing result retrieved",
                 "data": {
                     "id": pr.id,
+                    "product_id": product.id,
                     "cogs_per_unit_idr": float(pr.cogs_per_unit_idr),
                     "target_margin_percent": float(pr.target_margin_percent),
                     "target_country_code": pr.target_country_code,
@@ -721,7 +728,7 @@ class CatalogPricingView(APIView):
 
         return Response({
             "success": False,
-            "message": "Pricing not yet generated for this catalog. Use POST to generate.",
+            "message": "Pricing not yet generated for this product. Use POST to generate.",
         }, status=status.HTTP_404_NOT_FOUND)
 
     def post(self, request, catalog_id):
@@ -731,16 +738,18 @@ class CatalogPricingView(APIView):
             id=catalog_id,
             product__business__user=request.user,
         )
+        product = catalog.product
 
-        # Check if already exists
-        if hasattr(catalog, 'pricing_result'):
+        # Check if already exists on PRODUCT level
+        if hasattr(product, 'pricing_result'):
             return Response({
                 "success": False,
-                "message": "Pricing result already exists for this catalog. Each catalog can only have one pricing result.",
+                "message": "Pricing result already exists for this product. Each product can only have one pricing result.",
                 "existing_data": {
-                    "id": catalog.pricing_result.id,
-                    "exw_price_usd": float(catalog.pricing_result.exw_price_usd),
-                    "generated_at": catalog.pricing_result.generated_at,
+                    "id": product.pricing_result.id,
+                    "product_id": product.id,
+                    "exw_price_usd": float(product.pricing_result.exw_price_usd),
+                    "generated_at": product.pricing_result.generated_at,
                 }
             }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -754,8 +763,6 @@ class CatalogPricingView(APIView):
                 {"success": False, "message": "cogs_per_unit_idr is required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        product = catalog.product
 
         try:
             from decimal import Decimal
@@ -773,9 +780,9 @@ class CatalogPricingView(APIView):
             if result.get("success"):
                 data = result.get("data", {})
 
-                # Save to database
-                pr = CatalogPricingResult.objects.create(
-                    catalog=catalog,
+                # Save to database - linked to PRODUCT
+                pr = ProductPricingResult.objects.create(
+                    product=product,
                     cogs_per_unit_idr=Decimal(str(data.get("cogs_per_unit_idr", cogs_per_unit_idr))),
                     target_margin_percent=Decimal(str(data.get("target_margin_percent", target_margin_percent))),
                     target_country_code=target_country_code,
@@ -798,6 +805,7 @@ class CatalogPricingView(APIView):
                     "message": "Pricing generated and saved",
                     "data": {
                         "id": pr.id,
+                        "product_id": product.id,
                         "cogs_per_unit_idr": float(pr.cogs_per_unit_idr),
                         "target_margin_percent": float(pr.target_margin_percent),
                         "target_country_code": pr.target_country_code,
