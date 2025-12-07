@@ -203,58 +203,91 @@ class ProductCatalogImage(models.Model):
         return self.image_url
 
 
-class CatalogVariant(models.Model):
+class CatalogVariantType(models.Model):
     """
-    Product variants for a catalog entry.
-    Supports different sizes, colors, flavors, etc.
+    Variant type for a catalog (e.g., Color, Size, Material).
+    Each catalog can have multiple variant types.
     """
+
+    # Predefined variant type choices (user can also add custom)
+    VARIANT_TYPE_CHOICES = [
+        ("color", "Warna"),
+        ("size", "Ukuran"),
+        ("material", "Bahan"),
+        ("flavor", "Rasa"),
+        ("weight", "Berat"),
+        ("style", "Gaya"),
+        ("pattern", "Motif"),
+        ("custom", "Lainnya"),
+    ]
 
     catalog = models.ForeignKey(
         ProductCatalog,
         on_delete=models.CASCADE,
-        related_name="variants",
-        help_text="Catalog this variant belongs to"
+        related_name="variant_types",
+        help_text="Catalog this variant type belongs to"
     )
-    variant_name = models.CharField(
-        max_length=100,
-        help_text="Variant name (e.g., 'Large', 'Spicy', 'Red')"
-    )
-    attributes = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text="Variant attributes (e.g., {'color': 'red', 'size': 'L'})"
-    )
-    variant_price = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        help_text="Price for this variant in USD"
-    )
-    moq_variant = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=1,
-        help_text="Minimum order quantity for this variant"
-    )
-    sku = models.CharField(
+    type_code = models.CharField(
         max_length=50,
-        blank=True,
-        help_text="SKU for this variant"
+        choices=VARIANT_TYPE_CHOICES,
+        default="custom",
+        help_text="Predefined variant type code"
+    )
+    type_name = models.CharField(
+        max_length=100,
+        help_text="Display name for this variant type (e.g., 'Warna', 'Ukuran', or custom name)"
+    )
+    sort_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Display order"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "catalog_variant_types"
+        ordering = ["sort_order", "id"]
+        verbose_name = "Catalog Variant Type"
+        verbose_name_plural = "Catalog Variant Types"
+        unique_together = ["catalog", "type_name"]
+
+    def __str__(self):
+        return f"{self.catalog.display_name} - {self.type_name}"
+
+
+class CatalogVariantOption(models.Model):
+    """
+    Variant option within a variant type (e.g., Red, Blue for Color type).
+    """
+
+    variant_type = models.ForeignKey(
+        CatalogVariantType,
+        on_delete=models.CASCADE,
+        related_name="options",
+        help_text="Variant type this option belongs to"
+    )
+    option_name = models.CharField(
+        max_length=100,
+        help_text="Option name (e.g., 'Merah', 'Biru', 'S', 'M', 'L')"
+    )
+    sort_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Display order"
     )
     is_available = models.BooleanField(
         default=True,
-        help_text="Whether this variant is available"
+        help_text="Whether this option is available"
     )
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "catalog_variants"
-        ordering = ["variant_name"]
-        verbose_name = "Catalog Variant"
-        verbose_name_plural = "Catalog Variants"
+        db_table = "catalog_variant_options"
+        ordering = ["sort_order", "id"]
+        verbose_name = "Catalog Variant Option"
+        verbose_name_plural = "Catalog Variant Options"
+        unique_together = ["variant_type", "option_name"]
 
     def __str__(self):
-        return f"{self.catalog.display_name} - {self.variant_name}"
+        return f"{self.variant_type.type_name}: {self.option_name}"
 
 
 class ProductMarketIntelligence(models.Model):

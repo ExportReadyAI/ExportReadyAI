@@ -2,12 +2,14 @@
 URL Configuration for Product Catalog Module
 
 Endpoints:
-- GET/POST   /catalogs/                          - List/Create catalogs
-- GET/PUT/DELETE /catalogs/:id/                  - Catalog detail
-- GET/POST   /catalogs/:id/images/               - List/Add images
-- PUT/DELETE /catalogs/:id/images/:image_id/     - Update/Delete image
-- GET/POST   /catalogs/:id/variants/             - List/Add variants
-- PUT/DELETE /catalogs/:id/variants/:variant_id/ - Update/Delete variant
+- GET/POST   /catalogs/                                     - List/Create catalogs
+- GET/PUT/DELETE /catalogs/:id/                             - Catalog detail
+- GET/POST   /catalogs/:id/images/                          - List/Add images
+- PUT/DELETE /catalogs/:id/images/:image_id/                - Update/Delete image
+- GET/POST   /catalogs/:id/variant-types/                   - List/Add variant types
+- PUT/DELETE /catalogs/:id/variant-types/:type_id/          - Update/Delete variant type
+- GET/POST   /catalogs/:id/variant-types/:type_id/options/  - List/Add options
+- PUT/DELETE /catalogs/:id/variant-types/:type_id/options/:option_id/ - Update/Delete option
 
 AI Features:
 - POST /catalogs/:id/ai/description/             - Generate international descriptions
@@ -26,8 +28,10 @@ from .views import (
     CatalogDetailView,
     CatalogImageListCreateView,
     CatalogImageDetailView,
-    CatalogVariantListCreateView,
-    CatalogVariantDetailView,
+    CatalogVariantTypeListCreateView,
+    CatalogVariantTypeDetailView,
+    CatalogVariantOptionListCreateView,
+    CatalogVariantOptionDetailView,
     PublicCatalogListView,
     PublicCatalogDetailView,
     # AI Views
@@ -55,16 +59,28 @@ urlpatterns = [
         name="catalog-image-detail",
     ),
 
-    # Catalog Variants
+    # Catalog Variant Types
     path(
-        "<int:catalog_id>/variants/",
-        CatalogVariantListCreateView.as_view(),
-        name="catalog-variant-list-create",
+        "<int:catalog_id>/variant-types/",
+        CatalogVariantTypeListCreateView.as_view(),
+        name="catalog-variant-type-list-create",
     ),
     path(
-        "<int:catalog_id>/variants/<int:variant_id>/",
-        CatalogVariantDetailView.as_view(),
-        name="catalog-variant-detail",
+        "<int:catalog_id>/variant-types/<int:variant_type_id>/",
+        CatalogVariantTypeDetailView.as_view(),
+        name="catalog-variant-type-detail",
+    ),
+
+    # Catalog Variant Options (nested under variant types)
+    path(
+        "<int:catalog_id>/variant-types/<int:variant_type_id>/options/",
+        CatalogVariantOptionListCreateView.as_view(),
+        name="catalog-variant-option-list-create",
+    ),
+    path(
+        "<int:catalog_id>/variant-types/<int:variant_type_id>/options/<int:option_id>/",
+        CatalogVariantOptionDetailView.as_view(),
+        name="catalog-variant-option-detail",
     ),
 
     # AI Features
