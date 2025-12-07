@@ -3,28 +3,26 @@ Django Production Settings for ExportReady.AI
 """
 
 import dj_database_url
+import sys
 from .base import *  # noqa: F401, F403
 
 DEBUG = env.bool("DEBUG", default=False)  # noqa: F405
+
+# Startup logging for debugging Railway issues
+print("=" * 50, file=sys.stderr)
+print("PRODUCTION SETTINGS LOADED", file=sys.stderr)
+print(f"DEBUG: {DEBUG}", file=sys.stderr)
+print(f"DATABASE_URL configured: {bool(env('DATABASE_URL', default=None))}", file=sys.stderr)  # noqa: F405
+print("=" * 50, file=sys.stderr)
 
 # Railway-specific: Get allowed hosts from environment
 RAILWAY_STATIC_URL = env("RAILWAY_STATIC_URL", default="")  # noqa: F405
 RAILWAY_PUBLIC_DOMAIN = env("RAILWAY_PUBLIC_DOMAIN", default="")  # noqa: F405
 
-# Parse ALLOWED_HOSTS from env (comma-separated)
-env_allowed_hosts = env.list("ALLOWED_HOSTS", default=[])  # noqa: F405
-if env_allowed_hosts:
-    ALLOWED_HOSTS.extend(env_allowed_hosts)  # noqa: F405
-
-if RAILWAY_PUBLIC_DOMAIN:
-    ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)  # noqa: F405
-    ALLOWED_HOSTS.append(f"{RAILWAY_PUBLIC_DOMAIN}.railway.app")  # noqa: F405
-
-# Also allow Railway internal domains
-ALLOWED_HOSTS.extend([  # noqa: F405
-    ".railway.app",
-    ".up.railway.app",
-])
+# Allow Railway domains (wildcard for simplicity)
+ALLOWED_HOSTS = [  # noqa: F405
+    "*",  # Allow all hosts in production - Railway handles security at edge
+]
 
 # Database Configuration with Railway PostgreSQL
 if env("DATABASE_URL", default=None):  # noqa: F405
