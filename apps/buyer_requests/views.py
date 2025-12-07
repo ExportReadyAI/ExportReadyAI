@@ -295,13 +295,13 @@ class BuyerRequestMatchedUMKMView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        summary="Get matched UMKM for buyer request",
-        description="Get list of matched UMKM for a buyer request, sorted by match score.",
+        summary="Get matched catalogs for buyer request",
+        description="Get list of matched published catalogs for a buyer request, sorted by match score. Each result includes UMKM info and full catalog details. Multiple catalogs per UMKM are returned if they match.",
         responses={200: MatchedUMSerializer(many=True)},
         tags=["Buyer Requests"],
     )
     def get(self, request, request_id):
-        """GET /buyer-requests/:id/matched-umkm - Get matched UMKM."""
+        """GET /buyer-requests/:id/matched-umkm - Get matched catalogs with UMKM info."""
         try:
             buyer_request = BuyerRequest.objects.get(id=request_id)
         except BuyerRequest.DoesNotExist:
@@ -311,7 +311,7 @@ class BuyerRequestMatchedUMKMView(APIView):
         if request.user.role == UserRole.BUYER and buyer_request.buyer_user_id != request.user.id:
             return forbidden_response("You can only view matches for your own requests")
 
-        # Calculate matches
+        # Calculate matches (now returns catalogs with UMKM info)
         matching_service = BuyerRequestMatchingService()
         matches = matching_service.match_buyer_request(buyer_request)
 
@@ -325,22 +325,25 @@ class BuyerRequestMatchedUMKMView(APIView):
                 umkm_user = User.objects.get(id=match["umkm_id"])
                 business_profile = BusinessProfile.objects.get(user=umkm_user)
                 
-                enriched_matches.append({
+                # Build enriched match with catalog details
+                enriched_match = {
                     "umkm_id": umkm_user.id,
                     "company_name": business_profile.company_name,
                     "email": umkm_user.email,
                     "full_name": umkm_user.full_name,
-                    "match_score": match["final_match_score"],
+                    "match": "match",  # Category match (simplified)
                     "contact_info": {
                         "company_name": business_profile.company_name,
                         "address": business_profile.address,
                     },
-                })
+                    "catalog": match["catalog"],  # Include full catalog details
+                }
+                enriched_matches.append(enriched_match)
             except (User.DoesNotExist, BusinessProfile.DoesNotExist):
                 continue
 
         serializer = MatchedUMSerializer(enriched_matches, many=True)
-        return success_response(data=serializer.data, message="Matched UMKM retrieved successfully")
+        return success_response(data=serializer.data, message="Matched catalogs retrieved successfully")
 
 
 class BuyerProfilePagination(PageNumberPagination):
