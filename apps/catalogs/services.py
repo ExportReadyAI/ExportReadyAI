@@ -181,18 +181,25 @@ OUTPUT FORMAT (dalam JSON):
 Berikan output dalam format JSON yang valid."""
 
         try:
+            logger.info(f"Calling AI for product: {product_name}")
             response = self._call_ai(prompt, system_prompt)
+            logger.info(f"AI response received, length: {len(response) if response else 0}")
+            logger.debug(f"AI raw response: {response[:500] if response else 'None'}...")
 
             # Extract JSON from response
             json_match = re.search(r'\{[\s\S]*\}', response)
             if json_match:
-                result = json.loads(json_match.group())
+                json_str = json_match.group()
+                logger.debug(f"JSON extracted, length: {len(json_str)}")
+                result = json.loads(json_str)
+                logger.info(f"JSON parsed successfully, keys: {list(result.keys())}")
                 return {
                     "success": True,
                     "data": result
                 }
 
             # If no valid JSON, return structured response
+            logger.warning(f"No JSON found in AI response, using raw text")
             return {
                 "success": True,
                 "data": {
@@ -204,13 +211,14 @@ Berikan output dalam format JSON yang valid."""
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse AI response as JSON: {e}")
+            logger.error(f"Raw response that failed: {response[:500] if response else 'None'}...")
             return {
                 "success": False,
                 "error": "Failed to parse AI response",
                 "raw_response": response if 'response' in locals() else None
             }
         except Exception as e:
-            logger.error(f"Error generating international description: {e}")
+            logger.error(f"Error generating international description: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": str(e)

@@ -6,6 +6,7 @@ from .views import (
     EnrichProductView,
     ProductMarketIntelligenceView,
     ProductPricingView,
+    ProductCatalogDescriptionView,
 )
 
 app_name = "products"
@@ -20,4 +21,5 @@ urlpatterns = [
     # AI Features - langsung dari product (tanpa perlu catalog)
     path("<int:product_id>/ai/market-intelligence/", ProductMarketIntelligenceView.as_view(), name="product-market-intelligence"),
     path("<int:product_id>/ai/pricing/", ProductPricingView.as_view(), name="product-pricing"),
+    path("<int:product_id>/ai/catalog-description/", ProductCatalogDescriptionView.as_view(), name="product-catalog-description"),
 ]

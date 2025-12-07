@@ -375,6 +375,121 @@ class ProductMarketIntelligenceView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class ProductCatalogDescriptionView(APIView):
+    """
+    AI Catalog Description Generator for a product.
+
+    POST: Generate catalog description recommendations BEFORE creating a catalog.
+
+    This endpoint reads Product data and generates AI recommendations for:
+    - export_description: Marketing description for international buyers (B2B)
+    - technical_specs: Technical specification sheet
+    - safety_info: Material/Food safety information
+
+    The response is NOT saved - it's just recommendations for the user to review
+    and optionally use when creating a catalog.
+
+    Request body (optional):
+    - is_food_product: bool (default: false) - affects safety_info content
+
+    Response:
+    - success: true
+    - data:
+      - export_description: string (marketing B2B description)
+      - technical_specs: object (technical specification sheet)
+      - safety_info: object (material/food safety information)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, product_id):
+        user = request.user
+        product = get_object_or_404(Product, id=product_id)
+
+        # Check ownership for UMKM
+        if user.role != UserRole.ADMIN and product.business.user_id != user.id:
+            return Response(
+                {"success": False, "message": "Forbidden"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Get optional parameters - auto-detect food product from name/description
+        is_food_product = request.data.get("is_food_product", None)
+        if is_food_product is None:
+            # Auto-detect food product from keywords
+            food_keywords = ['makanan', 'minuman', 'food', 'snack', 'kopi', 'coffee', 'teh', 'tea',
+                           'keripik', 'kue', 'sambal', 'bumbu', 'rempah', 'mie', 'noodle', 'rice',
+                           'beras', 'gula', 'sugar', 'madu', 'honey', 'coklat', 'chocolate', 'kacang',
+                           'singkong', 'cassava', 'pisang', 'banana', 'buah', 'fruit', 'sayur', 'vegetable']
+            combined_text = f"{product.name_local} {product.description_local}".lower()
+            is_food_product = any(kw in combined_text for kw in food_keywords)
+            logger.info(f"Auto-detected is_food_product={is_food_product} for: {product.name_local}")
+
+        try:
+            # Use CatalogAIService to generate descriptions
+            ai_service = CatalogAIService()
+
+            # Prepare dimensions
+            dimensions = product.dimensions_l_w_h if product.dimensions_l_w_h else None
+
+            logger.info(f"Generating catalog description for product {product_id}: {product.name_local}")
+
+            result = ai_service.generate_international_description(
+                product_name=product.name_local,
+                description_local=product.description_local,
+                material_composition=product.material_composition,
+                dimensions=dimensions,
+                weight_net=float(product.weight_net) if product.weight_net else None,
+                weight_gross=float(product.weight_gross) if product.weight_gross else None,
+                category=str(product.category_id) if product.category_id else "",
+                is_food_product=is_food_product,
+            )
+
+            logger.info(f"AI result: success={result.get('success')}, has_data={bool(result.get('data'))}")
+
+            if not result.get("success"):
+                logger.error(f"Catalog description generation failed: {result.get('error')}")
+                raw_response = result.get("raw_response", "")
+                return Response({
+                    "success": False,
+                    "message": result.get("error", "Failed to generate catalog description"),
+                    "debug": raw_response[:500] if raw_response else None
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            data = result.get("data", {})
+
+            # Log what we got
+            logger.info(f"AI data keys: {list(data.keys()) if data else 'empty'}")
+
+            # Map the AI response to catalog-friendly field names
+            response_data = {
+                "export_description": data.get("export_buyer_description", ""),
+                "technical_specs": data.get("technical_spec_sheet", {}),
+                "safety_info": data.get("safety_sheet", {}),
+                "product_info": {
+                    "id": product.id,
+                    "name": product.name_local,
+                    "description_local": product.description_local,
+                    "material_composition": product.material_composition,
+                },
+                "is_food_product": is_food_product
+            }
+
+            logger.info(f"Catalog description generated for product {product_id}")
+
+            return Response({
+                "success": True,
+                "message": "Catalog description recommendations generated. Review and use when creating your catalog.",
+                "data": response_data
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error generating catalog description for product {product_id}: {e}")
+            return Response({
+                "success": False,
+                "message": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class ProductPricingView(APIView):
     """
     AI Pricing Calculator for a product.

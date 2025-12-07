@@ -180,75 +180,104 @@ PUT/DELETE /api/v1/catalogs/{catalog_id}/variants/{variant_id}/
 
 | AI | Fungsi | Endpoint | Catatan |
 |----|--------|----------|---------|
-| AI 1 | Description Generator | `/catalogs/{id}/ai/description/` | Rekomendasi saja, user bisa accept/reject |
+| AI 1 | Description Generator | `/products/{id}/ai/catalog-description/` | **SEBELUM create catalog** - dari Product data |
 | AI 2 | Market Intelligence | `/products/{id}/ai/market-intelligence/` | Via Product |
 | AI 3 | Pricing Calculator | `/products/{id}/ai/pricing/` | Via Product |
 
 ---
 
-### AI 1: Description Generator (via Catalog)
+### AI 1: Description Generator (via Product) ⭐ NEW
 
-Memberikan **rekomendasi** untuk field `export_description`, `technical_specs`, `safety_info`.
-
-**Penting - Flow yang Benar:**
-- User **BISA** isi field secara manual saat create/update catalog
-- AI hanya **rekomendasi** - user pilih mau accept atau tidak
-- Field tetap bisa diedit kapan saja oleh user
+**PENTING:** Endpoint ini dipanggil **SEBELUM** membuat catalog, untuk mendapatkan rekomendasi dari data Product.
 
 ```
-POST /api/v1/catalogs/{catalog_id}/ai/description/
+POST /api/v1/products/{product_id}/ai/catalog-description/
 ```
-**Input:**
+
+**Input (Optional):**
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| save_to_catalog | boolean | No | `false` = preview saja (default), `true` = simpan ke catalog |
+| is_food_product | boolean | No | Default: false. Jika true, safety_info akan berisi food safety |
 
 **Output:**
 ```json
 {
   "success": true,
+  "message": "Catalog description recommendations generated...",
   "data": {
     "export_description": "English B2B marketing description...",
     "technical_specs": {
       "product_name": "...",
       "material": "...",
       "dimensions": "...",
+      "weight_net": "...",
       "certifications": [...]
     },
     "safety_info": {
       "material_safety": "...",
       "warnings": [...],
       "storage": "..."
+    },
+    "product_info": {
+      "id": 35,
+      "name": "Tas Rotan Handmade",
+      "description_local": "...",
+      "material_composition": "..."
     }
-  },
-  "saved_to_catalog": false
+  }
 }
 ```
 
-**Flow Frontend yang Direkomendasikan:**
+**Note:**
+- Data TIDAK disimpan - hanya rekomendasi untuk user review sebelum create catalog.
+- **AI butuh waktu 10-30 detik** untuk generate. Frontend harus handle loading state.
+- Auto-detect food product berdasarkan keyword di nama/deskripsi (keripik, singkong, kopi, dll)
+
+---
+
+### Flow Frontend yang Benar
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  FORM CREATE/EDIT CATALOG                                   │
+│  STEP 1: Pilih Product untuk dijadikan Catalog              │
 ├─────────────────────────────────────────────────────────────┤
+│  Product: [Dropdown pilih product]                          │
 │                                                             │
-│  Export Description:  [__________]  [💡 Get AI Rec]        │
-│  Technical Specs:     [__________]  [💡 Get AI Rec]        │
-│  Safety Info:         [__________]  [💡 Get AI Rec]        │
-│                                                             │
-│  → User bisa ketik manual langsung, ATAU                   │
-│  → Klik "Get AI Rec" untuk dapat rekomendasi               │
+│  [💡 Get AI Recommendations]  ← OPTIONAL                    │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
-
-Jika klik "Get AI Rec":
-1. POST { "save_to_catalog": false } → dapat preview
-2. Tampilkan modal dengan hasil AI
-3. User pilih:
-   - [Accept] → isi field dengan hasil AI
-   - [Edit]   → user modifikasi dulu
-   - [Cancel] → tutup, isi manual
-4. Save catalog seperti biasa
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 2: Form Create Catalog                                │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Display Name:        [__________]                          │
+│  Marketing Desc:      [__________]                          │
+│                                                             │
+│  Export Description:  [__________] ← Isi manual ATAU AI    │
+│  Technical Specs:     [__________] ← Isi manual ATAU AI    │
+│  Safety Info:         [__________] ← Isi manual ATAU AI    │
+│                                                             │
+│  Base Price (EXW):    [__________]                          │
+│  Min Order Qty:       [__________]                          │
+│  Lead Time:           [__________]                          │
+│                                                             │
+│  Images:              [Upload/Select Photos]                │
+│                                                             │
+│                       [Create Catalog]                      │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+**Flow Jika User Klik "Get AI Recommendations":**
+1. `POST /products/{product_id}/ai/catalog-description/`
+2. Tampilkan hasil AI di modal/panel
+3. User pilih:
+   - **[Accept All]** → Pre-fill semua field dengan hasil AI
+   - **[Accept Partial]** → User pilih field mana yang mau dipakai
+   - **[Cancel]** → User isi manual semua field
+4. User tetap bisa edit semua field sebelum submit
+5. Submit form create catalog seperti biasa
 
 ---
 
