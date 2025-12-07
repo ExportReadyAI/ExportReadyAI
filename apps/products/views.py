@@ -29,6 +29,8 @@ from rest_framework.views import APIView
 from rest_framework.pagination import PageNumberPagination
 
 from apps.users.models import UserRole
+from apps.catalogs.models import ProductMarketIntelligence, ProductPricingResult
+from apps.catalogs.services import CatalogAIService
 from core.services import KolosalAIService
 from core.responses import created_response
 from core.exceptions import ForbiddenException, NotFoundException
@@ -208,3 +210,268 @@ class EnrichProductView(APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class ProductMarketIntelligenceView(APIView):
+    """
+    AI Market Intelligence for a product.
+    GET: Retrieve existing market intelligence
+    POST: Generate new market intelligence (only once per product)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get_product(self, product_id, user):
+        """Get product with ownership validation"""
+        product = get_object_or_404(Product, id=product_id)
+        if user.role != UserRole.ADMIN and product.business.user_id != user.id:
+            return None
+        return product
+
+    def get(self, request, product_id):
+        product = self.get_product(product_id, request.user)
+        if not product:
+            return Response(
+                {"success": False, "message": "Forbidden"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if hasattr(product, 'market_intelligence'):
+            mi = product.market_intelligence
+            return Response({
+                "success": True,
+                "data": {
+                    "id": mi.id,
+                    "product_id": product.id,
+                    "recommended_countries": mi.recommended_countries,
+                    "countries_to_avoid": mi.countries_to_avoid,
+                    "market_trends": mi.market_trends,
+                    "competitive_landscape": mi.competitive_landscape,
+                    "growth_opportunities": mi.growth_opportunities,
+                    "risks_and_challenges": mi.risks_and_challenges,
+                    "overall_recommendation": mi.overall_recommendation,
+                    "generated_at": mi.generated_at
+                }
+            })
+
+        return Response({
+            "success": False,
+            "message": "Market intelligence not yet generated for this product"
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    def post(self, request, product_id):
+        product = self.get_product(product_id, request.user)
+        if not product:
+            return Response(
+                {"success": False, "message": "Forbidden"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Check if already exists
+        if hasattr(product, 'market_intelligence'):
+            return Response({
+                "success": False,
+                "message": "Market intelligence already exists for this product. Use GET to retrieve it."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get enrichment for HS code
+        hs_code = None
+        if hasattr(product, 'enrichment') and product.enrichment:
+            hs_code = product.enrichment.hs_code_recommendation
+
+        # Get optional parameters
+        current_price_usd = request.data.get("current_price_usd")
+        production_capacity = request.data.get("production_capacity")
+
+        try:
+            ai_service = CatalogAIService()
+            result = ai_service.get_market_intelligence(
+                product_name=product.name_local,
+                description=product.description_local,
+                material_composition=product.material_composition,
+                current_price_usd=current_price_usd,
+                production_capacity=production_capacity
+            )
+
+            if not result.get("success"):
+                return Response({
+                    "success": False,
+                    "message": result.get("error", "Failed to generate market intelligence")
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            data = result["data"]
+
+            # Save to database
+            mi = ProductMarketIntelligence.objects.create(
+                product=product,
+                recommended_countries=data.get("recommended_countries", []),
+                countries_to_avoid=data.get("countries_to_avoid", []),
+                market_trends=data.get("market_trends", []),
+                competitive_landscape=data.get("competitive_landscape", ""),
+                growth_opportunities=data.get("growth_opportunities", []),
+                risks_and_challenges=data.get("risks_and_challenges", []),
+                overall_recommendation=data.get("overall_recommendation", "")
+            )
+
+            return Response({
+                "success": True,
+                "message": "Market intelligence generated and saved",
+                "data": {
+                    "id": mi.id,
+                    "product_id": product.id,
+                    "recommended_countries": mi.recommended_countries,
+                    "countries_to_avoid": mi.countries_to_avoid,
+                    "market_trends": mi.market_trends,
+                    "competitive_landscape": mi.competitive_landscape,
+                    "growth_opportunities": mi.growth_opportunities,
+                    "risks_and_challenges": mi.risks_and_challenges,
+                    "overall_recommendation": mi.overall_recommendation,
+                    "generated_at": mi.generated_at
+                }
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"Error generating market intelligence: {e}")
+            return Response({
+                "success": False,
+                "message": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ProductPricingView(APIView):
+    """
+    AI Pricing Calculator for a product.
+    GET: Retrieve existing pricing result
+    POST: Generate new pricing (only once per product)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get_product(self, product_id, user):
+        """Get product with ownership validation"""
+        product = get_object_or_404(Product, id=product_id)
+        if user.role != UserRole.ADMIN and product.business.user_id != user.id:
+            return None
+        return product
+
+    def get(self, request, product_id):
+        product = self.get_product(product_id, request.user)
+        if not product:
+            return Response(
+                {"success": False, "message": "Forbidden"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if hasattr(product, 'pricing_result'):
+            pr = product.pricing_result
+            return Response({
+                "success": True,
+                "data": {
+                    "id": pr.id,
+                    "product_id": product.id,
+                    "cogs_per_unit_idr": pr.cogs_per_unit_idr,
+                    "target_margin_percent": pr.target_margin_percent,
+                    "target_country_code": pr.target_country_code,
+                    "exchange_rate_used": pr.exchange_rate_used,
+                    "exw_price_usd": pr.exw_price_usd,
+                    "fob_price_usd": pr.fob_price_usd,
+                    "cif_price_usd": pr.cif_price_usd,
+                    "pricing_insight": pr.pricing_insight,
+                    "pricing_breakdown": pr.pricing_breakdown,
+                    "generated_at": pr.generated_at
+                }
+            })
+
+        return Response({
+            "success": False,
+            "message": "Pricing not yet generated for this product"
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    def post(self, request, product_id):
+        product = self.get_product(product_id, request.user)
+        if not product:
+            return Response(
+                {"success": False, "message": "Forbidden"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Check if already exists
+        if hasattr(product, 'pricing_result'):
+            return Response({
+                "success": False,
+                "message": "Pricing already exists for this product. Use GET to retrieve it."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate required fields
+        cogs_per_unit_idr = request.data.get("cogs_per_unit_idr")
+        target_margin_percent = request.data.get("target_margin_percent")
+        target_country_code = request.data.get("target_country_code", "US")
+
+        if not cogs_per_unit_idr:
+            return Response({
+                "success": False,
+                "message": "cogs_per_unit_idr is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not target_margin_percent:
+            return Response({
+                "success": False,
+                "message": "target_margin_percent is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            ai_service = CatalogAIService()
+            result = ai_service.generate_catalog_pricing(
+                product_name=product.name_local,
+                cogs_per_unit=float(cogs_per_unit_idr),
+                target_margin_percent=float(target_margin_percent),
+                material_composition=product.material_composition,
+                target_country_code=target_country_code,
+                weight_gross=float(product.weight_gross) if product.weight_gross else 1.0
+            )
+
+            if not result.get("success"):
+                return Response({
+                    "success": False,
+                    "message": result.get("error", "Failed to generate pricing")
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            data = result["data"]
+
+            # Save to database
+            pr = ProductPricingResult.objects.create(
+                product=product,
+                cogs_per_unit_idr=cogs_per_unit_idr,
+                target_margin_percent=target_margin_percent,
+                target_country_code=target_country_code,
+                exchange_rate_used=data.get("exchange_rate_used"),
+                exw_price_usd=data.get("exw_price_usd"),
+                fob_price_usd=data.get("fob_price_usd"),
+                cif_price_usd=data.get("cif_price_usd"),
+                pricing_insight=data.get("pricing_insight", ""),
+                pricing_breakdown=data.get("pricing_breakdown", {})
+            )
+
+            return Response({
+                "success": True,
+                "message": "Pricing generated and saved",
+                "data": {
+                    "id": pr.id,
+                    "product_id": product.id,
+                    "cogs_per_unit_idr": pr.cogs_per_unit_idr,
+                    "target_margin_percent": pr.target_margin_percent,
+                    "target_country_code": pr.target_country_code,
+                    "exchange_rate_used": pr.exchange_rate_used,
+                    "exw_price_usd": pr.exw_price_usd,
+                    "fob_price_usd": pr.fob_price_usd,
+                    "cif_price_usd": pr.cif_price_usd,
+                    "pricing_insight": pr.pricing_insight,
+                    "pricing_breakdown": pr.pricing_breakdown,
+                    "generated_at": pr.generated_at
+                }
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"Error generating pricing: {e}")
+            return Response({
+                "success": False,
+                "message": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
