@@ -26,6 +26,54 @@ from rest_framework.views import APIView
 from apps.products.models import Product
 from apps.users.models import UserRole
 
+from .models import Country, CountryRegulation, ExportAnalysis
+
+
+def create_analysis_snapshots(product, country_code):
+    """Create snapshots of product and regulations for historical record"""
+    product_snapshot = {
+        "name_local": product.name_local,
+        "category_id": product.category_id,
+        "description_local": product.description_local,
+        "material_composition": product.material_composition,
+        "production_technique": product.production_technique,
+        "finishing_type": product.finishing_type,
+        "quality_specs": product.quality_specs,
+        "durability_claim": product.durability_claim,
+        "packaging_type": product.packaging_type,
+        "dimensions_l_w_h": product.dimensions_l_w_h,
+        "weight_net": float(product.weight_net),
+        "weight_gross": float(product.weight_gross),
+    }
+    
+    # Add enrichment data if available
+    if hasattr(product, 'enrichment'):
+        product_snapshot["enrichment"] = {
+            "hs_code_recommendation": product.enrichment.hs_code_recommendation,
+            "sku_generated": product.enrichment.sku_generated,
+            "name_english_b2b": product.enrichment.name_english_b2b,
+            "description_english_b2b": product.enrichment.description_english_b2b,
+            "marketing_highlights": product.enrichment.marketing_highlights,
+        }
+    
+    # Get regulations snapshot
+    regulations = CountryRegulation.objects.filter(country__country_code=country_code)
+    regulation_snapshot = {
+        "country_code": country_code,
+        "rules": [
+            {
+                "category": reg.rule_category,
+                "forbidden_keywords": reg.forbidden_keywords,
+                "required_specs": reg.required_specs,
+                "description_rule": reg.description_rule,
+            }
+            for reg in regulations
+        ],
+    }
+    
+    return product_snapshot, regulation_snapshot
+
+
 from .models import Country, ExportAnalysis
 from .serializers import (
     CountryDetailSerializer,
@@ -225,7 +273,10 @@ class ExportAnalysisCreateView(APIView):
             ai_service = ComplianceAIService()
             analysis_result = ai_service.analyze_product_compliance(product, country_code)
 
-            # Create ExportAnalysis record with product snapshot
+            # Create snapshots for historical record
+            product_snapshot, regulation_snapshot = create_analysis_snapshots(product, country_code)
+
+            # Create ExportAnalysis record
             analysis = ExportAnalysis.objects.create(
                 product=product,
                 target_country=country,
@@ -233,11 +284,9 @@ class ExportAnalysisCreateView(APIView):
                 status_grade=analysis_result["status_grade"],
                 compliance_issues=analysis_result["compliance_issues"],
                 recommendations=analysis_result["recommendations"],
+                product_snapshot=product_snapshot,
+                regulation_snapshot=regulation_snapshot,
             )
-            
-            # Create and store product snapshot for audit trail
-            analysis.product_snapshot = analysis.create_product_snapshot(product)
-            analysis.save()
 
             logger.info(f"Compliance analysis completed for product {product_id} -> {country_code}")
 
@@ -390,6 +439,9 @@ class ExportAnalysisCompareView(APIView):
                     logger.info(f"Running comparison analysis: {product_id} -> {country_code}")
                     analysis_result = ai_service.analyze_product_compliance(product, country_code)
 
+                    # Create snapshots for historical record
+                    product_snapshot, regulation_snapshot = create_analysis_snapshots(product, country_code)
+
                     analysis = ExportAnalysis.objects.create(
                         product=product,
                         target_country=country,
@@ -397,13 +449,9 @@ class ExportAnalysisCompareView(APIView):
                         status_grade=analysis_result["status_grade"],
                         compliance_issues=analysis_result["compliance_issues"],
                         recommendations=analysis_result["recommendations"],
+                        product_snapshot=product_snapshot,
+                        regulation_snapshot=regulation_snapshot,
                     )
-                    
-                    # Use same snapshot for all comparisons (fair comparison)
-                    if product_snapshot is None:
-                        product_snapshot = analysis.create_product_snapshot(product)
-                    analysis.product_snapshot = product_snapshot
-                    analysis.save()
 
                 result_serializer = ExportAnalysisDetailSerializer(analysis)
                 results.append(result_serializer.data)

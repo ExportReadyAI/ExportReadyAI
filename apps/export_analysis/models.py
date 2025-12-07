@@ -148,6 +148,12 @@ class ExportAnalysis(models.Model):
         help_text="Snapshot of product data at analysis time (includes product and enrichment data)",
     )
     
+    # Regulation snapshot for historical record
+    regulation_snapshot = models.JSONField(
+        default=dict,
+        help_text="Snapshot of regulations checked at analysis time",
+    )
+    
     # Cached regulation recommendations to avoid regenerating
     regulation_recommendations_cache = models.JSONField(
         default=dict,

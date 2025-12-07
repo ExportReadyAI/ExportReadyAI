@@ -354,12 +354,16 @@ class ForwarderReviewDeleteView(APIView):
         if review.umkm_id != request.user.id:
             return forbidden_response("You can only delete your own reviews")
 
+        review_id = review.id
         review.delete()
 
         # Auto-trigger rating recalculation
         ForwarderRatingService.recalculate_rating(forwarder_id)
 
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return success_response(
+            data={"id": review_id},
+            message="Review deleted successfully"
+        )
 
 
 class ForwarderRecommendationView(APIView):
