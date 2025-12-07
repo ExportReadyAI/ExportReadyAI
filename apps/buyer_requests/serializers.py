@@ -221,6 +221,26 @@ class MatchedUMSerializer(serializers.Serializer):
     catalog = MatchedCatalogSerializer()
 
 
+class UMKMMatchedCatalogSerializer(serializers.Serializer):
+    """
+    Serializer for UMKM's own catalogs that match a buyer request.
+    Includes match score and reasons.
+    """
+    catalog_id = serializers.IntegerField()
+    display_name = serializers.CharField()
+    match_score = serializers.IntegerField()
+    match_reasons = serializers.ListField(child=serializers.CharField())
+    primary_image = serializers.URLField(allow_null=True)
+    base_price_exw = serializers.FloatField()
+    base_price_fob = serializers.FloatField(allow_null=True)
+    min_order_quantity = serializers.FloatField()
+    unit_type = serializers.CharField()
+    lead_time_days = serializers.IntegerField()
+    available_stock = serializers.IntegerField()
+    has_ai_description = serializers.BooleanField()
+    is_published = serializers.BooleanField()
+
+
 class BuyerProfileSerializer(serializers.ModelSerializer):
     """
     Serializer for BuyerProfile (READ operations).
