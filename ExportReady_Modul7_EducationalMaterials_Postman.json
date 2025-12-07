@@ -1,0 +1,625 @@
+{
+  "info": {
+    "_postman_id": "exportready-modul-7-educational-materials",
+    "name": "ExportReady.AI - Modul 7: Educational Materials (Simplified)",
+    "description": "# ExportReady.AI - Modul 7: Educational Materials (Simplified)\n\n## Simple CRUD for Modules and Articles\n\n### Modules\n- **GET /modules/** - List all modules\n- **POST /modules/** - Create module (Admin only)\n- **GET /modules/:id/** - Get module detail\n- **PUT /modules/:id/** - Update module (Admin only)\n- **DELETE /modules/:id/** - Delete module (Admin only)\n\n### Articles\n- **GET /articles/** - List all articles (filter by module_id)\n- **POST /articles/** - Create article (Admin only)\n- **GET /articles/:id/** - Get article detail\n- **PUT /articles/:id/** - Update article (Admin only)\n- **POST /articles/:id/upload-file/** - Upload file for article (Admin only)\n- **DELETE /articles/:id/** - Delete article (Admin only)\n\n## How to Use:\n1. Run Setup section first (Register Admin and UMKM users)\n2. Admin: Create modules and articles\n3. All authenticated users: View modules and articles\n\n## File Upload:\n**Two ways to add media to articles:**\n1. **Using External URLs**: Provide `video_url` or `file_url` as strings when creating/updating article (JSON request)\n2. **Upload File**: Use the \"Upload File for Article\" endpoint with multipart/form-data to upload files directly\n\n## Features:\n- Simple structure: Modules contain Articles\n- File upload support (PDF, images, etc.)\n- Video URL support (YouTube, Vimeo, etc.)\n- No progress tracking\n- No enrollments\n- No learning paths\n- Just simple CRUD operations",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000/api/v1/educational",
+      "type": "string"
+    },
+    {
+      "key": "admin_access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "umkm_access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "module_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "article_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Setup - Auth",
+      "description": "Setup authentication for Admin and UMKM users.",
+      "item": [
+        {
+          "name": "0.1 Register Admin User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.test('✅ Admin user registered successfully', function () {",
+                  "        var jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.success).to.be.true;",
+                  "        pm.expect(jsonData.data.user.role).to.eql('Admin');",
+                  "    });",
+                  "} else if (pm.response.code === 409) {",
+                  "    pm.test('⚠️ Admin user already exists - proceed to login', function () {",
+                  "        pm.expect(pm.response.code).to.eql(409);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin.educational@exportready.ai\",\n  \"password\": \"AdminPassword123!\",\n  \"full_name\": \"Educational Admin User\",\n  \"admin_code\": \"your-admin-registration-code\"\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/v1/auth/register-admin/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "v1", "auth", "register-admin", ""]
+            }
+          }
+        },
+        {
+          "name": "0.2 Login Admin & Get Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('admin_access_token', jsonData.data.tokens.access);",
+                  "    pm.test('✅ Admin login successful - token saved', function () {",
+                  "        pm.expect(jsonData.success).to.be.true;",
+                  "        pm.expect(jsonData.data.tokens.access).to.not.be.empty;",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin.educational@exportready.ai\",\n  \"password\": \"AdminPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/v1/auth/login/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "v1", "auth", "login", ""]
+            }
+          }
+        },
+        {
+          "name": "0.3 Register UMKM User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.test('✅ UMKM user registered successfully', function () {",
+                  "        var jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.success).to.be.true;",
+                  "        pm.expect(jsonData.data.user.role).to.eql('UMKM');",
+                  "    });",
+                  "} else if (pm.response.code === 409) {",
+                  "    pm.test('⚠️ UMKM user already exists - proceed to login', function () {",
+                  "        pm.expect(pm.response.code).to.eql(409);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"umkm.learner@exportready.ai\",\n  \"password\": \"UmkmPassword123!\",\n  \"full_name\": \"UMKM Learner User\"\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/v1/auth/register/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "v1", "auth", "register", ""]
+            }
+          }
+        },
+        {
+          "name": "0.4 Login UMKM & Get Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('umkm_access_token', jsonData.data.tokens.access);",
+                  "    pm.test('✅ UMKM login successful - token saved', function () {",
+                  "        pm.expect(jsonData.success).to.be.true;",
+                  "        pm.expect(jsonData.data.tokens.access).to.not.be.empty;",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"umkm.learner@exportready.ai\",\n  \"password\": \"UmkmPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/v1/auth/login/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "v1", "auth", "login", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Modules",
+      "description": "Module CRUD operations. All authenticated users can view, Admin can create/update/delete.",
+      "item": [
+        {
+          "name": "1.1 List Modules",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('✅ Modules retrieved successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "    if (jsonData.data.length > 0) {",
+                  "        pm.collectionVariables.set('module_id', jsonData.data[0].id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{umkm_access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/modules/",
+              "host": ["{{base_url}}"],
+              "path": ["modules", ""]
+            },
+            "description": "List all modules with their articles. Available to all authenticated users."
+          }
+        },
+        {
+          "name": "1.2 Create Module (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('module_id', jsonData.data.id);",
+                  "    pm.test('✅ Module created successfully', function () {",
+                  "        pm.expect(jsonData.success).to.be.true;",
+                  "        pm.expect(jsonData.data.id).to.exist;",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Panduan Ekspor ke Jepang\",\n  \"description\": \"Panduan lengkap untuk mengekspor produk ke pasar Jepang\",\n  \"order_index\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/modules/",
+              "host": ["{{base_url}}"],
+              "path": ["modules", ""]
+            },
+            "description": "Create a new module. Admin only. order_index is auto-assigned if not provided."
+          }
+        },
+        {
+          "name": "1.3 Get Module Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('✅ Module detail retrieved successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.articles).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{umkm_access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/modules/{{module_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["modules", "{{module_id}}", ""]
+            },
+            "description": "Get module details with nested articles."
+          }
+        },
+        {
+          "name": "1.4 Update Module (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('✅ Module updated successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Panduan Ekspor ke Jepang (Updated)\",\n  \"description\": \"Panduan lengkap yang telah diperbarui untuk mengekspor produk ke pasar Jepang\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/modules/{{module_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["modules", "{{module_id}}", ""]
+            },
+            "description": "Update module. Admin only."
+          }
+        },
+        {
+          "name": "1.5 Delete Module (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/modules/{{module_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["modules", "{{module_id}}", ""]
+            },
+            "description": "Delete module. Admin only. Cascade deletes articles."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Articles",
+      "description": "Article CRUD operations. All authenticated users can view, Admin can create/update/delete.",
+      "item": [
+        {
+          "name": "2.1 List Articles",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('✅ Articles retrieved successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "    if (jsonData.data.length > 0) {",
+                  "        pm.collectionVariables.set('article_id', jsonData.data[0].id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{umkm_access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/articles/?module_id={{module_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["articles", ""],
+              "query": [
+                {
+                  "key": "module_id",
+                  "value": "{{module_id}}",
+                  "description": "Filter by module ID (optional)"
+                }
+              ]
+            },
+            "description": "List all articles. Can filter by module_id query parameter."
+          }
+        },
+        {
+          "name": "2.2 Create Article (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('article_id', jsonData.data.id);",
+                  "    pm.test('✅ Article created successfully', function () {",
+                  "        pm.expect(jsonData.success).to.be.true;",
+                  "        pm.expect(jsonData.data.id).to.exist;",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"module_id\": {{module_id}},\n  \"title\": \"Regulasi dan Sertifikasi Jepang\",\n  \"content\": \"# Regulasi dan Sertifikasi Jepang\\n\\nJepang memiliki regulasi ketat untuk produk impor. Artikel ini membahas:\\n\\n- Food Safety Basic Law\\n- JAS (Japanese Agricultural Standards)\\n- Labeling requirements\\n- Import procedures\",\n  \"video_url\": \"https://www.youtube.com/watch?v=example\",\n  \"file_url\": \"https://example.com/guide.pdf\",\n  \"order_index\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/articles/",
+              "host": ["{{base_url}}"],
+              "path": ["articles", ""]
+            },
+            "description": "Create a new article. Admin only. order_index is auto-assigned if not provided.\n\n**Method 1: Using URLs (JSON)**\n- Use this request with Content-Type: application/json\n- Provide video_url and/or file_url as strings (external URLs)\n- Example: \"video_url\": \"https://www.youtube.com/watch?v=example\"\n\n**Method 2: Upload File**\n- First create article without file_url\n- Then use \"2.6 Upload File for Article\" endpoint to upload file\n- Or provide file_url manually if file is already hosted\n\nFields:\n- module_id (required)\n- title (required)\n- content (required)\n- video_url (optional) - External video URL (YouTube, Vimeo, etc.)\n- file_url (optional) - External file URL or upload via upload-file endpoint\n- order_index (optional)"
+          }
+        },
+        {
+          "name": "2.3 Get Article Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('✅ Article detail retrieved successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.content).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{umkm_access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/articles/{{article_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["articles", "{{article_id}}", ""]
+            },
+            "description": "Get article details."
+          }
+        },
+        {
+          "name": "2.4 Update Article (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('✅ Article updated successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Regulasi dan Sertifikasi Jepang (Updated)\",\n  \"content\": \"# Regulasi dan Sertifikasi Jepang (Updated)\\n\\nJepang memiliki regulasi ketat untuk produk impor. Artikel ini membahas:\\n\\n- Food Safety Basic Law\\n- JAS (Japanese Agricultural Standards)\\n- Labeling requirements\\n- Import procedures\\n\\n## Update: New regulations added in 2024\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/articles/{{article_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["articles", "{{article_id}}", ""]
+            },
+            "description": "Update article. Admin only."
+          }
+        },
+        {
+          "name": "2.5 Upload File for Article (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('✅ File uploaded successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.file_url).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Select a file to upload (PDF, image, etc.). Max size: 10MB"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/articles/{{article_id}}/upload-file/",
+              "host": ["{{base_url}}"],
+              "path": ["articles", "{{article_id}}", "upload-file", ""]
+            },
+            "description": "**Upload File for Article**\n\n**How to use:**\n1. In Postman, select this request\n2. Go to Body tab\n3. Select \"form-data\" (should be selected automatically)\n4. Click on \"file\" field\n5. Change type from \"Text\" to \"File\" (dropdown on the right)\n6. Click \"Select Files\" and choose your file\n7. Send request\n\n**Supported file types:**\n- PDF files\n- Images (JPG, PNG, GIF, WEBP)\n- Other document types\n\n**File size limit:** 10MB\n\n**Note:** This will update the article's file_url with the uploaded file URL. The file is stored using Django's default storage (can be configured to use Supabase Storage)."
+          }
+        },
+        {
+          "name": "2.6 Delete Article (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/articles/{{article_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["articles", "{{article_id}}", ""]
+            },
+            "description": "Delete article. Admin only."
+          }
+        }
+      ]
+    }
+  ]
+}

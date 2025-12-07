@@ -26,6 +26,54 @@ from rest_framework.views import APIView
 from apps.products.models import Product
 from apps.users.models import UserRole
 
+from .models import Country, CountryRegulation, ExportAnalysis
+
+
+def create_analysis_snapshots(product, country_code):
+    """Create snapshots of product and regulations for historical record"""
+    product_snapshot = {
+        "name_local": product.name_local,
+        "category_id": product.category_id,
+        "description_local": product.description_local,
+        "material_composition": product.material_composition,
+        "production_technique": product.production_technique,
+        "finishing_type": product.finishing_type,
+        "quality_specs": product.quality_specs,
+        "durability_claim": product.durability_claim,
+        "packaging_type": product.packaging_type,
+        "dimensions_l_w_h": product.dimensions_l_w_h,
+        "weight_net": float(product.weight_net),
+        "weight_gross": float(product.weight_gross),
+    }
+    
+    # Add enrichment data if available
+    if hasattr(product, 'enrichment'):
+        product_snapshot["enrichment"] = {
+            "hs_code_recommendation": product.enrichment.hs_code_recommendation,
+            "sku_generated": product.enrichment.sku_generated,
+            "name_english_b2b": product.enrichment.name_english_b2b,
+            "description_english_b2b": product.enrichment.description_english_b2b,
+            "marketing_highlights": product.enrichment.marketing_highlights,
+        }
+    
+    # Get regulations snapshot
+    regulations = CountryRegulation.objects.filter(country__country_code=country_code)
+    regulation_snapshot = {
+        "country_code": country_code,
+        "rules": [
+            {
+                "category": reg.rule_category,
+                "forbidden_keywords": reg.forbidden_keywords,
+                "required_specs": reg.required_specs,
+                "description_rule": reg.description_rule,
+            }
+            for reg in regulations
+        ],
+    }
+    
+    return product_snapshot, regulation_snapshot
+
+
 from .models import Country, ExportAnalysis
 from .serializers import (
     CountryDetailSerializer,
@@ -220,10 +268,13 @@ class ExportAnalysisCreateView(APIView):
         country = get_object_or_404(Country, country_code=country_code)
 
         try:
-            # Run AI compliance analysis
+            # Run AI compliance analysis on current product data
             logger.info(f"Starting compliance analysis for product {product_id} -> {country_code}")
             ai_service = ComplianceAIService()
             analysis_result = ai_service.analyze_product_compliance(product, country_code)
+
+            # Create snapshots for historical record
+            product_snapshot, regulation_snapshot = create_analysis_snapshots(product, country_code)
 
             # Create ExportAnalysis record
             analysis = ExportAnalysis.objects.create(
@@ -233,6 +284,8 @@ class ExportAnalysisCreateView(APIView):
                 status_grade=analysis_result["status_grade"],
                 compliance_issues=analysis_result["compliance_issues"],
                 recommendations=analysis_result["recommendations"],
+                product_snapshot=product_snapshot,
+                regulation_snapshot=regulation_snapshot,
             )
 
             logger.info(f"Compliance analysis completed for product {product_id} -> {country_code}")
@@ -295,21 +348,28 @@ class ExportAnalysisReanalyzeView(APIView):
             product = analysis.product
             product.refresh_from_db()
 
-            # Re-run AI compliance analysis
+            # Re-run AI compliance analysis with UPDATED product data
             logger.info(f"Re-analyzing product {product.id} -> {analysis.target_country_id}")
             ai_service = ComplianceAIService()
             analysis_result = ai_service.analyze_product_compliance(
                 product, analysis.target_country_id
             )
 
-            # Update ExportAnalysis record
+            # Update ExportAnalysis record with new results
             analysis.readiness_score = analysis_result["readiness_score"]
             analysis.status_grade = analysis_result["status_grade"]
             analysis.compliance_issues = analysis_result["compliance_issues"]
             analysis.recommendations = analysis_result["recommendations"]
+            
+            # Create NEW snapshot with updated product data
+            analysis.product_snapshot = analysis.create_product_snapshot(product)
+            
+            # Clear cached regulation recommendations since product changed
+            analysis.regulation_recommendations_cache = {}
+            
             analysis.save()  # analyzed_at will be auto-updated
 
-            logger.info(f"Re-analysis completed for analysis {analysis_id}")
+            logger.info(f"Re-analysis completed for analysis {analysis_id} with new product snapshot")
 
             result_serializer = ExportAnalysisDetailSerializer(analysis)
             return Response(
@@ -356,6 +416,9 @@ class ExportAnalysisCompareView(APIView):
 
         product = get_object_or_404(Product, id=product_id)
         ai_service = ComplianceAIService()
+        
+        # Create single snapshot for fair comparison across all countries
+        product_snapshot = None
 
         results = []
         for country_code in country_codes:
@@ -372,9 +435,12 @@ class ExportAnalysisCompareView(APIView):
                     # Use existing analysis
                     analysis = existing
                 else:
-                    # Run new analysis
+                    # Run new analysis with current product data
                     logger.info(f"Running comparison analysis: {product_id} -> {country_code}")
                     analysis_result = ai_service.analyze_product_compliance(product, country_code)
+
+                    # Create snapshots for historical record
+                    product_snapshot, regulation_snapshot = create_analysis_snapshots(product, country_code)
 
                     analysis = ExportAnalysis.objects.create(
                         product=product,
@@ -383,6 +449,8 @@ class ExportAnalysisCompareView(APIView):
                         status_grade=analysis_result["status_grade"],
                         compliance_issues=analysis_result["compliance_issues"],
                         recommendations=analysis_result["recommendations"],
+                        product_snapshot=product_snapshot,
+                        regulation_snapshot=regulation_snapshot,
                     )
 
                 result_serializer = ExportAnalysisDetailSerializer(analysis)
@@ -469,3 +537,104 @@ class CountryDetailView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class RegulationRecommendationView(APIView):
+    """
+    GET /export-analysis/:analysis_id/regulation-recommendations
+    
+    Returns detailed, actionable regulation recommendations for an export analysis.
+    Uses cached recommendations if available, otherwise generates new ones from the
+    product snapshot.
+    
+    Acceptance Criteria:
+    - Uses product snapshot (not live product) for consistency
+    - Returns cached recommendations if available
+    - Generates and caches recommendations if not cached
+    - Supports both Indonesian and English via Accept-Language header
+    - Returns comprehensive 10-section guidance structure
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, analysis_id):
+        # Get the analysis
+        analysis = get_object_or_404(ExportAnalysis, id=analysis_id)
+        print(f"Fetching regulation recommendations for analysis {analysis}")
+
+        # Permission check: UMKM can only access their own products' analyses
+        user = request.user
+        if user.role != UserRole.ADMIN:
+            if not hasattr(user, "business_profile"):
+                return Response(
+                    {"success": False, "message": "Business profile not found"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if analysis.product.business_id != user.business_profile.id:
+                return Response(
+                    {"success": False, "message": "You don't have permission to access this analysis"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        # Get language preference
+        language = request.META.get("HTTP_ACCEPT_LANGUAGE", "id")[:2].lower()
+        if language not in ["id", "en"]:
+            language = "id"
+
+        # Check if we have cached recommendations
+        if analysis.regulation_recommendations_cache:
+            return Response(
+                {
+                    "success": True,
+                    "message": "Regulation recommendations retrieved successfully",
+                    "data": {
+                        "analysis_id": analysis.id,
+                        "country_code": analysis.target_country.country_code,
+                        "product_name": analysis.get_snapshot_product_name(),
+                        "recommendations": analysis.regulation_recommendations_cache,
+                        "from_cache": True,
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # No cache - generate new recommendations from snapshot
+        if not analysis.product_snapshot:
+            return Response(
+                {"success": False, "message": "No product snapshot available for this analysis"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            service = ComplianceAIService()
+            recommendations = service.generate_regulation_recommendations(
+                product_snapshot=analysis.product_snapshot,
+                country_code=analysis.target_country.country_code,
+                language=language,
+            )
+
+            # Cache the recommendations
+            analysis.regulation_recommendations_cache = recommendations
+            analysis.save(update_fields=["regulation_recommendations_cache"])
+
+            return Response(
+                {
+                    "success": True,
+                    "message": "Regulation recommendations generated successfully",
+                    "data": {
+                        "analysis_id": analysis.id,
+                        "country_code": analysis.target_country.country_code,
+                        "product_name": analysis.get_snapshot_product_name(),
+                        "recommendations": recommendations,
+                        "from_cache": False,
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(f"Error generating regulation recommendations: {str(e)}")
+            return Response(
+                {"success": False, "message": f"Failed to generate recommendations: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

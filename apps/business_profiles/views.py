@@ -278,8 +278,8 @@ class DashboardSummaryView(APIView):
 
     # PBI-BE-M1-12: GET /dashboard/summary
     # - Return summary counts untuk dashboard
-    # - UMKM: product_count, analysis_count, costing_count (milik sendiri)
-    # - Admin: total_users, total_products, total_analysis
+    # - UMKM: product_count, catalog_count, etc. (milik sendiri)
+    # - Admin: total_users, total_products, etc. (system-wide)
     # - Include: has_business_profile (boolean)
     # - Response: 200 OK dengan summary object
     """
@@ -297,30 +297,134 @@ class DashboardSummaryView(APIView):
         tags=["Dashboard"],
     )
     def get(self, request):
+        from apps.products.models import Product
+        from apps.catalogs.models import (
+            ProductCatalog,
+            ProductMarketIntelligence,
+            ProductPricingResult,
+        )
+        from apps.buyer_requests.models import BuyerRequest
+        from apps.educational_materials.models import Module, Article
+
         user = request.user
 
         if user.role == UserRole.UMKM:
-            # UMKM summary
-            has_business_profile = BusinessProfile.objects.filter(user=user).exists()
+            # Check if user has business profile
+            business_profile = BusinessProfile.objects.filter(user=user).first()
+            has_business_profile = business_profile is not None
 
-            summary = {
-                "product_count": 0,  # Will be updated when Product model is added
-                "analysis_count": 0,  # Will be updated when ExportAnalysis model is added
-                "costing_count": 0,  # Will be updated when Costing model is added
-                "has_business_profile": has_business_profile,
-            }
+            if has_business_profile:
+                # Get counts for user's business
+                product_count = Product.objects.filter(business=business_profile).count()
+                catalog_count = ProductCatalog.objects.filter(
+                    product__business=business_profile
+                ).count()
+                catalog_published_count = ProductCatalog.objects.filter(
+                    product__business=business_profile,
+                    is_published=True
+                ).count()
+
+                # Products without catalog (actionable)
+                products_without_catalog = Product.objects.filter(
+                    business=business_profile,
+                    catalog__isnull=True
+                ).count()
+
+                # Count all open buyer requests (potential opportunities for UMKM)
+                buyer_requests_count = BuyerRequest.objects.filter(
+                    status="Open"
+                ).count()
+                pending_requests_count = buyer_requests_count
+
+                # Educational materials available
+                total_modules = Module.objects.count()
+                total_articles = Article.objects.count()
+
+                summary = {
+                    "has_business_profile": True,
+                    "products": {
+                        "total": product_count,
+                        "without_catalog": products_without_catalog,
+                    },
+                    "catalogs": {
+                        "total": catalog_count,
+                        "published": catalog_published_count,
+                        "draft": catalog_count - catalog_published_count,
+                    },
+                    "buyer_requests": {
+                        "total": buyer_requests_count,
+                        "pending": pending_requests_count,
+                    },
+                    "educational_materials": {
+                        "total_modules": total_modules,
+                        "total_articles": total_articles,
+                    },
+                }
+            else:
+                # No business profile yet
+                total_modules = Module.objects.count()
+                total_articles = Article.objects.count()
+
+                summary = {
+                    "has_business_profile": False,
+                    "products": {"total": 0, "without_catalog": 0},
+                    "catalogs": {"total": 0, "published": 0, "draft": 0},
+                    "buyer_requests": {"total": 0, "pending": 0},
+                    "educational_materials": {
+                        "total_modules": total_modules,
+                        "total_articles": total_articles,
+                    },
+                }
+
         else:
-            # Admin summary
+            # Admin summary - system-wide statistics
             total_users = User.objects.count()
             total_umkm = User.objects.filter(role=UserRole.UMKM).count()
+            total_buyers = User.objects.filter(role=UserRole.BUYER).count()
+            total_forwarders = User.objects.filter(role=UserRole.FORWARDER).count()
             total_business_profiles = BusinessProfile.objects.count()
+            total_products = Product.objects.count()
+            total_catalogs = ProductCatalog.objects.count()
+            total_published_catalogs = ProductCatalog.objects.filter(is_published=True).count()
+            total_buyer_requests = BuyerRequest.objects.count()
+
+            # AI usage stats
+            total_enrichments = Product.objects.filter(enrichment__isnull=False).count()
+            total_market_intel = ProductMarketIntelligence.objects.count()
+            total_pricing = ProductPricingResult.objects.count()
+
+            # Educational materials stats
+            total_modules = Module.objects.count()
+            total_articles = Article.objects.count()
 
             summary = {
-                "total_users": total_users,
-                "total_umkm": total_umkm,
-                "total_business_profiles": total_business_profiles,
-                "total_products": 0,  # Will be updated when Product model is added
-                "total_analysis": 0,  # Will be updated when ExportAnalysis model is added
+                "users": {
+                    "total": total_users,
+                    "umkm": total_umkm,
+                    "buyers": total_buyers,
+                    "forwarders": total_forwarders,
+                },
+                "business_profiles": {
+                    "total": total_business_profiles,
+                },
+                "products": {
+                    "total": total_products,
+                    "with_enrichment": total_enrichments,
+                    "with_market_intelligence": total_market_intel,
+                    "with_pricing": total_pricing,
+                },
+                "catalogs": {
+                    "total": total_catalogs,
+                    "published": total_published_catalogs,
+                    "draft": total_catalogs - total_published_catalogs,
+                },
+                "buyer_requests": {
+                    "total": total_buyer_requests,
+                },
+                "educational_materials": {
+                    "total_modules": total_modules,
+                    "total_articles": total_articles,
+                },
             }
 
         return success_response(

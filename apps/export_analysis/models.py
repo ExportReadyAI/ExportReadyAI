@@ -116,6 +116,8 @@ class ExportAnalysis(models.Model):
     # [DONE] JSON column untuk compliance_issues
     # [DONE] Index pada product_id dan target_country_code
     # [DONE] status_grade: Enum (Ready, Warning, Critical)
+    # [DONE] Product snapshot for audit trail
+    # [DONE] Regulation recommendations cache
     """
 
     product = models.ForeignKey(
@@ -139,6 +141,26 @@ class ExportAnalysis(models.Model):
         help_text="Detail temuan AI (Missing Spec, Banned Item)",
     )
     recommendations = models.TextField(blank=True, default="")
+    
+    # Product snapshot for audit trail and proper versioning
+    product_snapshot = models.JSONField(
+        default=dict,
+        help_text="Snapshot of product data at analysis time (includes product and enrichment data)",
+    )
+    
+    # Regulation snapshot for historical record
+    regulation_snapshot = models.JSONField(
+        default=dict,
+        help_text="Snapshot of regulations checked at analysis time",
+    )
+    
+    # Cached regulation recommendations to avoid regenerating
+    regulation_recommendations_cache = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Cached detailed regulation recommendations",
+    )
+    
     analyzed_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -155,3 +177,76 @@ class ExportAnalysis(models.Model):
 
     def __str__(self):
         return f"Analysis: {self.product.name_local} -> {self.target_country.country_name}"
+    
+    def create_product_snapshot(self, product):
+        """
+        Create a snapshot of product data for audit trail.
+        Captures both product base data and enrichment data.
+        
+        Args:
+            product: Product model instance
+        
+        Returns:
+            dict: Product snapshot with all relevant data
+        """
+        snapshot = {
+            # Basic product information
+            "product_id": product.id,
+            "business_id": product.business_id,
+            "name_local": product.name_local,
+            "category_id": product.category_id,
+            "description_local": product.description_local,
+            "material_composition": product.material_composition,
+            "production_technique": product.production_technique,
+            "finishing_type": product.finishing_type,
+            "quality_specs": product.quality_specs,
+            "durability_claim": product.durability_claim,
+            "packaging_type": product.packaging_type,
+            "dimensions_l_w_h": product.dimensions_l_w_h,
+            "weight_net": str(product.weight_net),
+            "weight_gross": str(product.weight_gross),
+            "created_at": product.created_at.isoformat(),
+            "updated_at": product.updated_at.isoformat(),
+        }
+        
+        # Add enrichment data if available
+        if hasattr(product, "enrichment") and product.enrichment:
+            enrichment = product.enrichment
+            snapshot["enrichment"] = {
+                "hs_code_recommendation": enrichment.hs_code_recommendation,
+                "sku_generated": enrichment.sku_generated,
+                "name_english_b2b": enrichment.name_english_b2b,
+                "description_english_b2b": enrichment.description_english_b2b,
+                "marketing_highlights": enrichment.marketing_highlights,
+                "last_updated_ai": enrichment.last_updated_ai.isoformat(),
+            }
+        else:
+            snapshot["enrichment"] = None
+        
+        return snapshot
+    
+    def get_snapshot_product_name(self):
+        """Get product name from snapshot, fallback to current product."""
+        if self.product_snapshot and "name_local" in self.product_snapshot:
+            return self.product_snapshot["name_local"]
+        return self.product.name_local if self.product else "Unknown Product"
+    
+    def is_product_changed(self):
+        """
+        Check if the current product data differs from the snapshot.
+        Returns True if product has been updated after analysis.
+        """
+        if not self.product_snapshot:
+            return False
+        
+        try:
+            product = self.product
+            snapshot_updated = self.product_snapshot.get("updated_at")
+            if snapshot_updated:
+                from dateutil import parser
+                snapshot_time = parser.isoparse(snapshot_updated)
+                return product.updated_at > snapshot_time
+        except Exception:
+            pass
+        
+        return False

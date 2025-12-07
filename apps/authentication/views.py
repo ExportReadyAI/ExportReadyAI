@@ -15,7 +15,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from core.permissions import IsAdmin
 from rest_framework.views import APIView
 
-from apps.users.models import User
+from apps.users.models import User, UserRole
 from apps.users.serializers import UserDetailSerializer
 from core.exceptions import ConflictException
 from core.responses import created_response, error_response, success_response

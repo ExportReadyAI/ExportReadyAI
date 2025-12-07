@@ -61,12 +61,17 @@ LOCAL_APPS = [
     "apps.costings",
     "apps.export_analysis",
     "apps.master_data",
+    "apps.catalogs",
+    "apps.buyer_requests",
+    "apps.forwarders",
+    "apps.educational_materials",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # Add WhiteNoise for static files
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -259,3 +264,12 @@ KOLOSAL_API_KEY = env("KOLOSAL_API_KEY", default="")
 KOLOSAL_BASE_URL = env("KOLOSAL_BASE_URL", default="https://api.kolosal.ai/v1")
 KOLOSAL_MODEL = env("KOLOSAL_MODEL", default="Claude Sonnet 4.5")
 
+# ============================================================================
+# Supabase Storage Configuration
+# ============================================================================
+SUPABASE_URL = env("SUPABASE_URL", default="")
+SUPABASE_ANON_KEY = env("SUPABASE_ANON_KEY", default="")
+# Bucket for educational materials (Module 7)
+SUPABASE_STORAGE_BUCKET = env("SUPABASE_STORAGE_BUCKET", default="educational-materials")
+# Bucket for catalog images
+SUPABASE_CATALOG_BUCKET = env("SUPABASE_CATALOG_BUCKET", default="catalogs")
