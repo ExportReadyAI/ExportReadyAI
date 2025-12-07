@@ -25,6 +25,7 @@ class BuyerRequestSerializer(serializers.ModelSerializer):
     buyer_full_name = serializers.CharField(source="buyer_user.full_name", read_only=True)
     selected_catalog_id = serializers.IntegerField(source="selected_catalog.id", read_only=True, allow_null=True)
     selected_catalog_name = serializers.CharField(source="selected_catalog.display_name", read_only=True, allow_null=True)
+    selected_umkm_id = serializers.SerializerMethodField()
 
     class Meta:
         model = BuyerRequest
@@ -44,6 +45,7 @@ class BuyerRequestSerializer(serializers.ModelSerializer):
             "status",
             "selected_catalog_id",
             "selected_catalog_name",
+            "selected_umkm_id",
             "created_at",
             "updated_at",
         ]
@@ -56,6 +58,12 @@ class BuyerRequestSerializer(serializers.ModelSerializer):
             return buyer_profile.company_name
         except BuyerProfile.DoesNotExist:
             return obj.buyer_user.full_name
+    
+    def get_selected_umkm_id(self, obj):
+        """Get selected UMKM ID from selected catalog's product owner."""
+        if obj.selected_catalog:
+            return obj.selected_catalog.product.business.user_id
+        return None
 
 
 class CreateBuyerRequestSerializer(serializers.Serializer):
