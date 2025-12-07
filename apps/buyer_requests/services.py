@@ -62,6 +62,12 @@ class BuyerRequestMatchingService:
         category_mapping = {
             "Makanan Olahan": 1,
             "makanan olahan": 1,
+            "Snack & Camilan": 1,
+            "snack & camilan": 1,
+            "Snack": 1,
+            "snack": 1,
+            "Camilan": 1,
+            "camilan": 1,
             "Kerajinan": 2,
             "kerajinan": 2,
             "Tekstil": 3,
