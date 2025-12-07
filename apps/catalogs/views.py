@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.shortcuts import get_object_or_404
 
 from apps.products.models import Product
@@ -199,10 +200,16 @@ class CatalogDetailView(APIView):
 class CatalogImageListCreateView(APIView):
     """
     GET: List images for a catalog
-    POST: Add image to catalog
+    POST: Add image to catalog (supports both file upload and URL)
+
+    For file upload, use multipart/form-data with 'image' field.
+    For URL, use application/json with 'image_url' field.
+
+    File uploads are stored in Supabase Storage.
     """
 
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request, catalog_id):
         """List all images for a catalog"""
@@ -212,11 +219,20 @@ class CatalogImageListCreateView(APIView):
             product__business__user=request.user,
         )
         images = catalog.images.all()
-        serializer = CatalogImageSerializer(images, many=True)
+        serializer = CatalogImageSerializer(images, many=True, context={"request": request})
         return Response({"success": True, "data": serializer.data})
 
     def post(self, request, catalog_id):
-        """Add image to catalog"""
+        """
+        Add image to catalog.
+
+        Supports two methods:
+        1. File upload: POST with multipart/form-data, include 'image' file
+           -> Uploaded to Supabase Storage, URL stored in image_url
+        2. URL: POST with application/json, include 'image_url' string
+        """
+        from .services import get_catalog_storage_service
+
         catalog = get_object_or_404(
             ProductCatalog,
             id=catalog_id,
@@ -226,10 +242,26 @@ class CatalogImageListCreateView(APIView):
         data = request.data.copy()
         data["catalog_id"] = catalog_id
 
+        # If file is uploaded, try to upload to Supabase
+        uploaded_file = request.FILES.get("image")
+        if uploaded_file:
+            try:
+                storage_service = get_catalog_storage_service()
+                supabase_url = storage_service.upload_image(uploaded_file, catalog_id)
+
+                if supabase_url:
+                    # Successfully uploaded to Supabase, store URL
+                    data["image_url"] = supabase_url
+                    data.pop("image", None)
+                # else: supabase_url is None, keep the file in data for local storage via ImageField
+            except Exception as e:
+                logger.error(f"Failed to upload image to Supabase: {e}")
+                # Keep the file in data for local storage via ImageField
+
         serializer = CatalogImageCreateSerializer(data=data)
         if serializer.is_valid():
             image = serializer.save()
-            response_serializer = CatalogImageSerializer(image)
+            response_serializer = CatalogImageSerializer(image, context={"request": request})
             return Response(
                 {
                     "success": True,
@@ -247,11 +279,12 @@ class CatalogImageListCreateView(APIView):
 
 class CatalogImageDetailView(APIView):
     """
-    PUT: Update image
-    DELETE: Delete image
+    PUT: Update image (supports file upload to Supabase)
+    DELETE: Delete image (also from Supabase)
     """
 
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_image(self, catalog_id, image_id, user):
         """Helper to get image with ownership check"""
@@ -263,10 +296,35 @@ class CatalogImageDetailView(APIView):
         )
 
     def put(self, request, catalog_id, image_id):
-        """Update image"""
+        """Update image (can update file or URL)"""
+        from .services import get_catalog_storage_service
+
         image = self.get_image(catalog_id, image_id, request.user)
 
-        serializer = CatalogImageSerializer(image, data=request.data, partial=True)
+        data = request.data.copy()
+
+        # If new file is uploaded, try to upload to Supabase
+        uploaded_file = request.FILES.get("image")
+        if uploaded_file:
+            try:
+                storage_service = get_catalog_storage_service()
+                # Delete old image from Supabase if exists
+                if image.image_url:
+                    storage_service.delete_image(image.image_url)
+                # Upload new image
+                supabase_url = storage_service.upload_image(uploaded_file, catalog_id)
+
+                if supabase_url:
+                    data["image_url"] = supabase_url
+                    data.pop("image", None)
+                # else: keep file in data for local storage
+            except Exception as e:
+                logger.error(f"Failed to upload image to Supabase: {e}")
+                # Keep the file in data for local storage via ImageField
+
+        serializer = CatalogImageSerializer(
+            image, data=data, partial=True, context={"request": request}
+        )
         if serializer.is_valid():
             image = serializer.save()
             return Response(
@@ -283,16 +341,27 @@ class CatalogImageDetailView(APIView):
         )
 
     def delete(self, request, catalog_id, image_id):
-        """Delete image"""
+        """Delete image (also from Supabase storage)"""
+        from .services import get_catalog_storage_service
+
         image = self.get_image(catalog_id, image_id, request.user)
-        image_id = image.id
+        image_id_to_return = image.id
+
+        # Delete from Supabase storage if it's a Supabase URL
+        if image.image_url:
+            try:
+                storage_service = get_catalog_storage_service()
+                storage_service.delete_image(image.image_url)
+            except Exception as e:
+                logger.warning(f"Failed to delete image from Supabase: {e}")
+
         image.delete()
 
         return Response(
             {
                 "success": True,
                 "message": "Image deleted successfully",
-                "data": {"id": image_id},
+                "data": {"id": image_id_to_return},
             }
         )
 

@@ -65,8 +65,13 @@ urlpatterns = [
     ),
 ]
 
-# Debug toolbar URLs (only in DEBUG mode)
+# Debug toolbar URLs and Media files (only in DEBUG mode)
 if settings.DEBUG:
+    from django.conf.urls.static import static
+
+    # Serve media files in development
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
     try:
         import debug_toolbar
 

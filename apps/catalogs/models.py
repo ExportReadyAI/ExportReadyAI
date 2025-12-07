@@ -142,10 +142,15 @@ class ProductCatalog(models.Model):
         super().save(*args, **kwargs)
 
 
+def catalog_image_path(instance, filename):
+    """Generate upload path for catalog images: catalog_images/{catalog_id}/{filename}"""
+    return f"catalog_images/{instance.catalog_id}/{filename}"
+
+
 class ProductCatalogImage(models.Model):
     """
     Multiple images for a catalog entry.
-    Supports sorting for display order.
+    Supports both file upload and URL.
     """
 
     catalog = models.ForeignKey(
@@ -154,9 +159,17 @@ class ProductCatalogImage(models.Model):
         related_name="images",
         help_text="Catalog this image belongs to"
     )
+    # Support both file upload and URL
+    image = models.ImageField(
+        upload_to=catalog_image_path,
+        blank=True,
+        null=True,
+        help_text="Uploaded image file"
+    )
     image_url = models.URLField(
         max_length=500,
-        help_text="URL to the image"
+        blank=True,
+        help_text="External URL to the image (alternative to upload)"
     )
     alt_text = models.CharField(
         max_length=255,
@@ -181,6 +194,13 @@ class ProductCatalogImage(models.Model):
 
     def __str__(self):
         return f"Image {self.sort_order} for {self.catalog.display_name}"
+
+    @property
+    def url(self):
+        """Return the image URL - either from uploaded file or external URL"""
+        if self.image:
+            return self.image.url
+        return self.image_url
 
 
 class CatalogVariant(models.Model):

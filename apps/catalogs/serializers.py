@@ -12,19 +12,33 @@ from .models import ProductCatalog, ProductCatalogImage, CatalogVariant
 
 
 class CatalogImageSerializer(serializers.ModelSerializer):
-    """Serializer for catalog images"""
+    """Serializer for catalog images - supports both file upload and URL"""
+
+    # Read-only field that returns the final URL (from uploaded file or external URL)
+    url = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductCatalogImage
         fields = (
             "id",
+            "image",
             "image_url",
+            "url",
             "alt_text",
             "sort_order",
             "is_primary",
             "created_at",
         )
-        read_only_fields = ("id", "created_at")
+        read_only_fields = ("id", "url", "created_at")
+
+    def get_url(self, obj):
+        """Return the image URL - either from uploaded file or external URL"""
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return obj.image_url
 
 
 class CatalogVariantSerializer(serializers.ModelSerializer):
@@ -122,12 +136,12 @@ class ProductCatalogListSerializer(serializers.ModelSerializer):
         )
 
     def get_primary_image(self, obj):
-        """Get the primary image URL"""
+        """Get the primary image URL (from uploaded file or external URL)"""
         primary = obj.images.filter(is_primary=True).first()
         if primary:
-            return primary.image_url
+            return primary.url  # Uses the model's url property
         first = obj.images.first()
-        return first.image_url if first else None
+        return first.url if first else None
 
     def get_variant_count(self, obj):
         """Get count of variants"""
@@ -230,19 +244,38 @@ class ProductCatalogUpdateSerializer(serializers.ModelSerializer):
 
 
 class CatalogImageCreateSerializer(serializers.ModelSerializer):
-    """Serializer for adding images to a catalog"""
+    """
+    Serializer for adding images to a catalog.
+    Supports both file upload (image) and external URL (image_url).
+    At least one of image or image_url must be provided.
+    """
 
     catalog_id = serializers.IntegerField(write_only=True)
+    image = serializers.ImageField(required=False, allow_null=True)
+    image_url = serializers.URLField(required=False, allow_blank=True)
 
     class Meta:
         model = ProductCatalogImage
         fields = (
             "catalog_id",
+            "image",
             "image_url",
             "alt_text",
             "sort_order",
             "is_primary",
         )
+
+    def validate(self, attrs):
+        """Ensure at least one of image or image_url is provided"""
+        image = attrs.get("image")
+        image_url = attrs.get("image_url")
+
+        if not image and not image_url:
+            raise serializers.ValidationError(
+                "Either 'image' (file upload) or 'image_url' must be provided."
+            )
+
+        return attrs
 
     def create(self, validated_data):
         catalog_id = validated_data.pop("catalog_id")
