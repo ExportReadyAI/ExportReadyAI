@@ -511,12 +511,18 @@ class RegulationRecommendationView(APIView):
 
     def get(self, request, analysis_id):
         # Get the analysis
-        analysis = get_object_or_404(ExportAnalysis, analysis_id=analysis_id)
+        analysis = get_object_or_404(ExportAnalysis, id=analysis_id)
+        print(f"Fetching regulation recommendations for analysis {analysis}")
 
         # Permission check: UMKM can only access their own products' analyses
         user = request.user
-        if user.role == UserRole.UMKM.value:
-            if analysis.product.business_profile.user_id != user.user_id:
+        if user.role != UserRole.ADMIN:
+            if not hasattr(user, "business_profile"):
+                return Response(
+                    {"success": False, "message": "Business profile not found"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if analysis.product.business_id != user.business_profile.id:
                 return Response(
                     {"success": False, "message": "You don't have permission to access this analysis"},
                     status=status.HTTP_403_FORBIDDEN,
@@ -534,8 +540,8 @@ class RegulationRecommendationView(APIView):
                     "success": True,
                     "message": "Regulation recommendations retrieved successfully",
                     "data": {
-                        "analysis_id": analysis.analysis_id,
-                        "country_code": analysis.country_code,
+                        "analysis_id": analysis.id,
+                        "country_code": analysis.target_country.country_code,
                         "product_name": analysis.get_snapshot_product_name(),
                         "recommendations": analysis.regulation_recommendations_cache,
                         "from_cache": True,
@@ -555,7 +561,7 @@ class RegulationRecommendationView(APIView):
             service = ComplianceAIService()
             recommendations = service.generate_regulation_recommendations(
                 product_snapshot=analysis.product_snapshot,
-                country_code=analysis.country_code,
+                country_code=analysis.target_country.country_code,
                 language=language,
             )
 
@@ -568,8 +574,8 @@ class RegulationRecommendationView(APIView):
                     "success": True,
                     "message": "Regulation recommendations generated successfully",
                     "data": {
-                        "analysis_id": analysis.analysis_id,
-                        "country_code": analysis.country_code,
+                        "analysis_id": analysis.id,
+                        "country_code": analysis.target_country.country_code,
                         "product_name": analysis.get_snapshot_product_name(),
                         "recommendations": recommendations,
                         "from_cache": False,
