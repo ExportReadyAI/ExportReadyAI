@@ -14,10 +14,11 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.shortcuts import get_object_or_404
 
 from apps.products.models import Product
-from .models import ProductCatalog, ProductCatalogImage, CatalogVariant
+from .models import ProductCatalog, ProductCatalogImage, CatalogVariantType, CatalogVariantOption
 from .serializers import (
     ProductCatalogSerializer,
     ProductCatalogListSerializer,
@@ -25,8 +26,10 @@ from .serializers import (
     ProductCatalogUpdateSerializer,
     CatalogImageSerializer,
     CatalogImageCreateSerializer,
-    CatalogVariantSerializer,
-    CatalogVariantCreateSerializer,
+    CatalogVariantTypeSerializer,
+    CatalogVariantTypeCreateSerializer,
+    CatalogVariantOptionSerializer,
+    CatalogVariantOptionCreateSerializer,
     PublicCatalogSerializer,
 )
 
@@ -60,7 +63,7 @@ class CatalogListCreateView(APIView):
         # Get user's business profile products
         catalogs = ProductCatalog.objects.filter(
             product__business__user=user
-        ).select_related("product").prefetch_related("images", "variants")
+        ).select_related("product").prefetch_related("images", "variant_types__options")
 
         # Filter by published status if provided
         is_published = request.query_params.get("is_published")
@@ -135,7 +138,7 @@ class CatalogDetailView(APIView):
     def get_catalog(self, catalog_id, user):
         """Helper to get catalog with ownership check"""
         return get_object_or_404(
-            ProductCatalog.objects.select_related("product").prefetch_related("images", "variants"),
+            ProductCatalog.objects.select_related("product").prefetch_related("images", "variant_types__options"),
             id=catalog_id,
             product__business__user=user,
         )
@@ -199,10 +202,16 @@ class CatalogDetailView(APIView):
 class CatalogImageListCreateView(APIView):
     """
     GET: List images for a catalog
-    POST: Add image to catalog
+    POST: Add image to catalog (supports both file upload and URL)
+
+    For file upload, use multipart/form-data with 'image' field.
+    For URL, use application/json with 'image_url' field.
+
+    File uploads are stored in Supabase Storage.
     """
 
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request, catalog_id):
         """List all images for a catalog"""
@@ -212,11 +221,20 @@ class CatalogImageListCreateView(APIView):
             product__business__user=request.user,
         )
         images = catalog.images.all()
-        serializer = CatalogImageSerializer(images, many=True)
+        serializer = CatalogImageSerializer(images, many=True, context={"request": request})
         return Response({"success": True, "data": serializer.data})
 
     def post(self, request, catalog_id):
-        """Add image to catalog"""
+        """
+        Add image to catalog.
+
+        Supports two methods:
+        1. File upload: POST with multipart/form-data, include 'image' file
+           -> Uploaded to Supabase Storage, URL stored in image_url
+        2. URL: POST with application/json, include 'image_url' string
+        """
+        from .services import get_catalog_storage_service
+
         catalog = get_object_or_404(
             ProductCatalog,
             id=catalog_id,
@@ -226,10 +244,26 @@ class CatalogImageListCreateView(APIView):
         data = request.data.copy()
         data["catalog_id"] = catalog_id
 
+        # If file is uploaded, try to upload to Supabase
+        uploaded_file = request.FILES.get("image")
+        if uploaded_file:
+            try:
+                storage_service = get_catalog_storage_service()
+                supabase_url = storage_service.upload_image(uploaded_file, catalog_id)
+
+                if supabase_url:
+                    # Successfully uploaded to Supabase, store URL
+                    data["image_url"] = supabase_url
+                    data.pop("image", None)
+                # else: supabase_url is None, keep the file in data for local storage via ImageField
+            except Exception as e:
+                logger.error(f"Failed to upload image to Supabase: {e}")
+                # Keep the file in data for local storage via ImageField
+
         serializer = CatalogImageCreateSerializer(data=data)
         if serializer.is_valid():
             image = serializer.save()
-            response_serializer = CatalogImageSerializer(image)
+            response_serializer = CatalogImageSerializer(image, context={"request": request})
             return Response(
                 {
                     "success": True,
@@ -247,11 +281,12 @@ class CatalogImageListCreateView(APIView):
 
 class CatalogImageDetailView(APIView):
     """
-    PUT: Update image
-    DELETE: Delete image
+    PUT: Update image (supports file upload to Supabase)
+    DELETE: Delete image (also from Supabase)
     """
 
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_image(self, catalog_id, image_id, user):
         """Helper to get image with ownership check"""
@@ -263,10 +298,35 @@ class CatalogImageDetailView(APIView):
         )
 
     def put(self, request, catalog_id, image_id):
-        """Update image"""
+        """Update image (can update file or URL)"""
+        from .services import get_catalog_storage_service
+
         image = self.get_image(catalog_id, image_id, request.user)
 
-        serializer = CatalogImageSerializer(image, data=request.data, partial=True)
+        data = request.data.copy()
+
+        # If new file is uploaded, try to upload to Supabase
+        uploaded_file = request.FILES.get("image")
+        if uploaded_file:
+            try:
+                storage_service = get_catalog_storage_service()
+                # Delete old image from Supabase if exists
+                if image.image_url:
+                    storage_service.delete_image(image.image_url)
+                # Upload new image
+                supabase_url = storage_service.upload_image(uploaded_file, catalog_id)
+
+                if supabase_url:
+                    data["image_url"] = supabase_url
+                    data.pop("image", None)
+                # else: keep file in data for local storage
+            except Exception as e:
+                logger.error(f"Failed to upload image to Supabase: {e}")
+                # Keep the file in data for local storage via ImageField
+
+        serializer = CatalogImageSerializer(
+            image, data=data, partial=True, context={"request": request}
+        )
         if serializer.is_valid():
             image = serializer.save()
             return Response(
@@ -283,46 +343,65 @@ class CatalogImageDetailView(APIView):
         )
 
     def delete(self, request, catalog_id, image_id):
-        """Delete image"""
+        """Delete image (also from Supabase storage)"""
+        from .services import get_catalog_storage_service
+
         image = self.get_image(catalog_id, image_id, request.user)
-        image_id = image.id
+        image_id_to_return = image.id
+
+        # Delete from Supabase storage if it's a Supabase URL
+        if image.image_url:
+            try:
+                storage_service = get_catalog_storage_service()
+                storage_service.delete_image(image.image_url)
+            except Exception as e:
+                logger.warning(f"Failed to delete image from Supabase: {e}")
+
         image.delete()
 
         return Response(
             {
                 "success": True,
                 "message": "Image deleted successfully",
-                "data": {"id": image_id},
+                "data": {"id": image_id_to_return},
             }
         )
 
 
 # ============================================================
-# CATALOG VARIANT VIEWS
+# CATALOG VARIANT TYPE VIEWS
 # ============================================================
 
 
-class CatalogVariantListCreateView(APIView):
+class CatalogVariantTypeListCreateView(APIView):
     """
-    GET: List variants for a catalog
-    POST: Add variant to catalog
+    GET: List variant types for a catalog (with options)
+    POST: Add variant type to catalog
     """
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request, catalog_id):
-        """List all variants for a catalog"""
+        """List all variant types for a catalog"""
         catalog = get_object_or_404(
             ProductCatalog,
             id=catalog_id,
             product__business__user=request.user,
         )
-        variants = catalog.variants.all()
-        serializer = CatalogVariantSerializer(variants, many=True)
-        return Response({"success": True, "data": serializer.data})
+        variant_types = catalog.variant_types.prefetch_related("options").all()
+        serializer = CatalogVariantTypeSerializer(variant_types, many=True)
+
+        # Also return predefined types for dropdown
+        predefined_types = CatalogVariantTypeSerializer.get_predefined_types()
+
+        return Response({
+            "success": True,
+            "data": serializer.data,
+            "predefined_types": predefined_types,
+        })
 
     def post(self, request, catalog_id):
-        """Add variant to catalog"""
+        """Add variant type to catalog"""
         catalog = get_object_or_404(
             ProductCatalog,
             id=catalog_id,
@@ -332,14 +411,14 @@ class CatalogVariantListCreateView(APIView):
         data = request.data.copy()
         data["catalog_id"] = catalog_id
 
-        serializer = CatalogVariantCreateSerializer(data=data)
+        serializer = CatalogVariantTypeCreateSerializer(data=data)
         if serializer.is_valid():
-            variant = serializer.save()
-            response_serializer = CatalogVariantSerializer(variant)
+            variant_type = serializer.save()
+            response_serializer = CatalogVariantTypeSerializer(variant_type)
             return Response(
                 {
                     "success": True,
-                    "message": "Variant added successfully",
+                    "message": "Variant type added successfully",
                     "data": response_serializer.data,
                 },
                 status=status.HTTP_201_CREATED,
@@ -351,34 +430,34 @@ class CatalogVariantListCreateView(APIView):
         )
 
 
-class CatalogVariantDetailView(APIView):
+class CatalogVariantTypeDetailView(APIView):
     """
-    PUT: Update variant
-    DELETE: Delete variant
+    PUT: Update variant type
+    DELETE: Delete variant type (and all its options)
     """
 
     permission_classes = [IsAuthenticated]
 
-    def get_variant(self, catalog_id, variant_id, user):
-        """Helper to get variant with ownership check"""
+    def get_variant_type(self, catalog_id, variant_type_id, user):
+        """Helper to get variant type with ownership check"""
         return get_object_or_404(
-            CatalogVariant,
-            id=variant_id,
+            CatalogVariantType,
+            id=variant_type_id,
             catalog_id=catalog_id,
             catalog__product__business__user=user,
         )
 
-    def put(self, request, catalog_id, variant_id):
-        """Update variant"""
-        variant = self.get_variant(catalog_id, variant_id, request.user)
+    def put(self, request, catalog_id, variant_type_id):
+        """Update variant type"""
+        variant_type = self.get_variant_type(catalog_id, variant_type_id, request.user)
 
-        serializer = CatalogVariantSerializer(variant, data=request.data, partial=True)
+        serializer = CatalogVariantTypeSerializer(variant_type, data=request.data, partial=True)
         if serializer.is_valid():
-            variant = serializer.save()
+            variant_type = serializer.save()
             return Response(
                 {
                     "success": True,
-                    "message": "Variant updated successfully",
+                    "message": "Variant type updated successfully",
                     "data": serializer.data,
                 }
             )
@@ -388,17 +467,126 @@ class CatalogVariantDetailView(APIView):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    def delete(self, request, catalog_id, variant_id):
-        """Delete variant"""
-        variant = self.get_variant(catalog_id, variant_id, request.user)
-        variant_id = variant.id
-        variant.delete()
+    def delete(self, request, catalog_id, variant_type_id):
+        """Delete variant type and all its options"""
+        variant_type = self.get_variant_type(catalog_id, variant_type_id, request.user)
+        variant_type_id_to_return = variant_type.id
+        variant_type.delete()
 
         return Response(
             {
                 "success": True,
-                "message": "Variant deleted successfully",
-                "data": {"id": variant_id},
+                "message": "Variant type deleted successfully",
+                "data": {"id": variant_type_id_to_return},
+            }
+        )
+
+
+# ============================================================
+# CATALOG VARIANT OPTION VIEWS
+# ============================================================
+
+
+class CatalogVariantOptionListCreateView(APIView):
+    """
+    GET: List options for a variant type
+    POST: Add option to variant type
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, catalog_id, variant_type_id):
+        """List all options for a variant type"""
+        variant_type = get_object_or_404(
+            CatalogVariantType,
+            id=variant_type_id,
+            catalog_id=catalog_id,
+            catalog__product__business__user=request.user,
+        )
+        options = variant_type.options.all()
+        serializer = CatalogVariantOptionSerializer(options, many=True)
+        return Response({"success": True, "data": serializer.data})
+
+    def post(self, request, catalog_id, variant_type_id):
+        """Add option to variant type"""
+        variant_type = get_object_or_404(
+            CatalogVariantType,
+            id=variant_type_id,
+            catalog_id=catalog_id,
+            catalog__product__business__user=request.user,
+        )
+
+        data = request.data.copy()
+        data["variant_type_id"] = variant_type_id
+
+        serializer = CatalogVariantOptionCreateSerializer(data=data)
+        if serializer.is_valid():
+            option = serializer.save()
+            response_serializer = CatalogVariantOptionSerializer(option)
+            return Response(
+                {
+                    "success": True,
+                    "message": "Option added successfully",
+                    "data": response_serializer.data,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        return Response(
+            {"success": False, "message": "Validation failed", "errors": serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+class CatalogVariantOptionDetailView(APIView):
+    """
+    PUT: Update option
+    DELETE: Delete option
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get_option(self, catalog_id, variant_type_id, option_id, user):
+        """Helper to get option with ownership check"""
+        return get_object_or_404(
+            CatalogVariantOption,
+            id=option_id,
+            variant_type_id=variant_type_id,
+            variant_type__catalog_id=catalog_id,
+            variant_type__catalog__product__business__user=user,
+        )
+
+    def put(self, request, catalog_id, variant_type_id, option_id):
+        """Update option"""
+        option = self.get_option(catalog_id, variant_type_id, option_id, request.user)
+
+        serializer = CatalogVariantOptionSerializer(option, data=request.data, partial=True)
+        if serializer.is_valid():
+            option = serializer.save()
+            return Response(
+                {
+                    "success": True,
+                    "message": "Option updated successfully",
+                    "data": serializer.data,
+                }
+            )
+
+        return Response(
+            {"success": False, "message": "Validation failed", "errors": serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    def delete(self, request, catalog_id, variant_type_id, option_id):
+        """Delete option"""
+        option = self.get_option(catalog_id, variant_type_id, option_id, request.user)
+        option_id_to_return = option.id
+        option.delete()
+
+        return Response(
+            {
+                "success": True,
+                "message": "Option deleted successfully",
+                "data": {"id": option_id_to_return},
             }
         )
 
@@ -420,7 +608,7 @@ class PublicCatalogListView(APIView):
         """List all published catalogs for buyers"""
         catalogs = ProductCatalog.objects.filter(
             is_published=True
-        ).select_related("product__business").prefetch_related("images", "variants")
+        ).select_related("product__business").prefetch_related("images", "variant_types__options")
 
         # Search by display name
         search = request.query_params.get("search")
@@ -458,7 +646,7 @@ class PublicCatalogDetailView(APIView):
     def get(self, request, catalog_id):
         """Get catalog detail for buyers"""
         catalog = get_object_or_404(
-            ProductCatalog.objects.select_related("product__business").prefetch_related("images", "variants"),
+            ProductCatalog.objects.select_related("product__business").prefetch_related("images", "variant_types__options"),
             id=catalog_id,
             is_published=True,
         )

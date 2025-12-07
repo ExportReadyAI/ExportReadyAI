@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzY1MDg5OTM5LCJpYXQiOjE3NjUwODYzMzksImp0aSI6IjkxNjE4MmNkOTBmYTQ3NjQ5NjE0ZDg3YmU4OWM1YWI4IiwidXNlcl9pZCI6MTksImVtYWlsIjoiZGVtb0BleHBvcnRyZWFkeS5haSIsInJvbGUiOiJVTUtNIn0.KfBbxeYczVdlK8_ZB9XHZZ1NNYQ6fiVO9-IILzqmELs\")",
+      "Bash(curl:*)",
+      "Bash(python manage.py shell:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

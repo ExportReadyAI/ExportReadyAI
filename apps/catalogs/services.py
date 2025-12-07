@@ -13,15 +13,21 @@ Implements:
 
 3. Catalog Pricing (reuses costing module)
    - EXW/FOB/CIF pricing for catalog
+
+4. Catalog Storage Service
+   - Upload images to Supabase Storage
 """
 
 import json
 import logging
 import re
+import uuid
 from decimal import Decimal
+from pathlib import Path
 from typing import Dict, Optional
 
 from django.conf import settings
+from django.core.files.storage import default_storage
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
@@ -175,18 +181,25 @@ OUTPUT FORMAT (dalam JSON):
 Berikan output dalam format JSON yang valid."""
 
         try:
+            logger.info(f"Calling AI for product: {product_name}")
             response = self._call_ai(prompt, system_prompt)
+            logger.info(f"AI response received, length: {len(response) if response else 0}")
+            logger.debug(f"AI raw response: {response[:500] if response else 'None'}...")
 
             # Extract JSON from response
             json_match = re.search(r'\{[\s\S]*\}', response)
             if json_match:
-                result = json.loads(json_match.group())
+                json_str = json_match.group()
+                logger.debug(f"JSON extracted, length: {len(json_str)}")
+                result = json.loads(json_str)
+                logger.info(f"JSON parsed successfully, keys: {list(result.keys())}")
                 return {
                     "success": True,
                     "data": result
                 }
 
             # If no valid JSON, return structured response
+            logger.warning(f"No JSON found in AI response, using raw text")
             return {
                 "success": True,
                 "data": {
@@ -198,13 +211,14 @@ Berikan output dalam format JSON yang valid."""
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse AI response as JSON: {e}")
+            logger.error(f"Raw response that failed: {response[:500] if response else 'None'}...")
             return {
                 "success": False,
                 "error": "Failed to parse AI response",
                 "raw_response": response if 'response' in locals() else None
             }
         except Exception as e:
-            logger.error(f"Error generating international description: {e}")
+            logger.error(f"Error generating international description: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": str(e)
@@ -454,3 +468,143 @@ def get_catalog_ai_service() -> CatalogAIService:
     if _catalog_ai_service is None:
         _catalog_ai_service = CatalogAIService()
     return _catalog_ai_service
+
+
+# ============================================================================
+# Catalog Storage Service (Supabase)
+# ============================================================================
+
+class CatalogStorageService:
+    """
+    Service for handling catalog image uploads to Supabase Storage.
+
+    Falls back to Django's default storage if Supabase is not configured.
+    """
+
+    def __init__(self):
+        self.supabase_url = getattr(settings, "SUPABASE_URL", "")
+        self.supabase_key = getattr(settings, "SUPABASE_ANON_KEY", "")
+        # Use dedicated bucket for catalog images
+        self.bucket_name = getattr(settings, "SUPABASE_CATALOG_BUCKET", "catalog-images")
+
+        self.client = None
+        try:
+            from supabase import create_client, Client
+            if self.supabase_url and self.supabase_key:
+                self.client: Optional[Client] = create_client(self.supabase_url, self.supabase_key)
+                logger.info(f"✅ Catalog Storage (Supabase) initialized - Bucket: {self.bucket_name}")
+            else:
+                logger.warning("⚠️ Supabase credentials not configured. Catalog images will use local storage.")
+        except ImportError:
+            logger.warning("⚠️ supabase-py not installed. Catalog images will use local storage.")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Supabase client: {e}")
+
+    def upload_image(self, file, catalog_id: int) -> str:
+        """
+        Upload catalog image to Supabase Storage.
+
+        Args:
+            file: Django UploadedFile object
+            catalog_id: ID of the catalog
+
+        Returns:
+            Public URL of the uploaded image
+        """
+        # Generate unique filename
+        file_ext = Path(file.name).suffix.lower()
+        unique_filename = f"{uuid.uuid4()}{file_ext}"
+        storage_path = f"catalogs/{catalog_id}/{unique_filename}"
+
+        if self.client:
+            try:
+                file.seek(0)
+                file_content = file.read()
+
+                # Determine content type
+                content_type = getattr(file, 'content_type', None)
+                if not content_type:
+                    content_type = self._get_content_type(file_ext)
+
+                file_options = {
+                    "content-type": content_type,
+                    "upsert": "true"
+                }
+
+                logger.info(f"Uploading catalog image to Supabase: {storage_path} ({len(file_content)} bytes)")
+
+                # Upload to Supabase
+                response = self.client.storage.from_(self.bucket_name).upload(
+                    path=storage_path,
+                    file=file_content,
+                    file_options=file_options
+                )
+
+                # Get public URL
+                public_url = self.client.storage.from_(self.bucket_name).get_public_url(storage_path)
+                logger.info(f"✅ Catalog image uploaded: {public_url}")
+                return public_url
+
+            except Exception as e:
+                logger.error(f"❌ Supabase upload failed: {e}")
+                logger.warning("Falling back to local storage...")
+                return self._upload_local(file, storage_path)
+        else:
+            return self._upload_local(file, storage_path)
+
+    def _upload_local(self, file, storage_path: str) -> str:
+        """
+        Fallback to local filesystem storage.
+        Returns None to indicate file should be saved via Django's ImageField instead.
+        """
+        # Return None to signal that we should use Django's ImageField
+        # instead of storing URL in image_url
+        logger.warning("Supabase not available. Image will be stored locally via ImageField.")
+        return None
+
+    def _get_content_type(self, file_ext: str) -> str:
+        """Get MIME type from file extension."""
+        content_types = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+            ".svg": "image/svg+xml",
+        }
+        return content_types.get(file_ext.lower(), "application/octet-stream")
+
+    def delete_image(self, file_url: str) -> bool:
+        """
+        Delete image from Supabase Storage.
+
+        Args:
+            file_url: Public URL of the image to delete
+
+        Returns:
+            True if deleted successfully, False otherwise
+        """
+        if not self.client:
+            return True
+
+        try:
+            if "supabase.co/storage" in file_url and f"/{self.bucket_name}/" in file_url:
+                path = file_url.split(f"/{self.bucket_name}/")[-1].split("?")[0]
+                self.client.storage.from_(self.bucket_name).remove([path])
+                logger.info(f"Catalog image deleted from Supabase: {path}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Supabase image deletion failed: {e}")
+            return False
+
+
+# Singleton instance for storage
+_catalog_storage_service = None
+
+def get_catalog_storage_service() -> CatalogStorageService:
+    """Get or create CatalogStorageService singleton."""
+    global _catalog_storage_service
+    if _catalog_storage_service is None:
+        _catalog_storage_service = CatalogStorageService()
+    return _catalog_storage_service

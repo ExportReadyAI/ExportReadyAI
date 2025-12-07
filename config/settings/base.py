@@ -264,9 +264,12 @@ KOLOSAL_BASE_URL = env("KOLOSAL_BASE_URL", default="https://api.kolosal.ai/v1")
 KOLOSAL_MODEL = env("KOLOSAL_MODEL", default="Claude Sonnet 4.5")
 
 # ============================================================================
-# Supabase Storage Configuration (Module 7: Educational Materials)
+# Supabase Storage Configuration
 # ============================================================================
 SUPABASE_URL = env("SUPABASE_URL", default="")
 SUPABASE_ANON_KEY = env("SUPABASE_ANON_KEY", default="")
+# Bucket for educational materials (Module 7)
 SUPABASE_STORAGE_BUCKET = env("SUPABASE_STORAGE_BUCKET", default="educational-materials")
+# Bucket for catalog images
+SUPABASE_CATALOG_BUCKET = env("SUPABASE_CATALOG_BUCKET", default="catalog-images")
 
