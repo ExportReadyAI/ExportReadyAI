@@ -42,25 +42,58 @@ class CatalogAIService:
             api_key=api_key.strip(),
             base_url=settings.KOLOSAL_BASE_URL,
         )
+        # Use model name directly from settings (same as other services)
+        # Don't use model mapping - use the name as-is from settings
         self.model = settings.KOLOSAL_MODEL
         logger.info(f"CatalogAIService initialized - Model: {self.model}")
 
-    def _call_ai(self, prompt: str, system_prompt: str = None, temperature: float = 0.3) -> str:
-        """Make a call to Kolosal AI API."""
+    def _call_ai(self, prompt: str, system_prompt: str = None, temperature: float = 0.1) -> str:
+        """
+        Make a call to Kolosal AI API.
+        
+        Matches the pattern used in core/services/ai_service.py (KolosalAIService)
+        which is successfully working for product enrichment.
+        
+        Args:
+            prompt: The user prompt
+            system_prompt: Optional system prompt for context
+            temperature: Temperature for AI response (default 0.1 for consistency)
+            
+        Returns:
+            The AI response text
+        """
         messages = []
+        
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
+        
         messages.append({"role": "user", "content": prompt})
-
+        
         try:
+            logger.debug(f"Calling Kolosal AI API with model: {self.model}")
+            logger.debug(f"Messages count: {len(messages)}")
+            # Log message lengths for debugging
+            for i, msg in enumerate(messages):
+                content_len = len(msg.get("content", ""))
+                logger.debug(f"Message {i} ({msg.get('role')}): {content_len} chars")
+            
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                temperature=temperature,
+                temperature=temperature,  # Low temperature for consistent results (same as KolosalAIService)
             )
-            return response.choices[0].message.content.strip()
+            result = response.choices[0].message.content.strip()
+            logger.debug(f"AI API response received: {result[:100]}...")
+            return result
         except Exception as e:
-            logger.error(f"Kolosal AI API error: {e}", exc_info=True)
+            logger.error(f"Kolosal AI API error: {e}")
+            logger.error(f"Model: {self.model}")
+            logger.error(f"Base URL: {self.client.base_url}")
+            # Log the actual messages being sent (truncated for safety)
+            for i, msg in enumerate(messages):
+                content = msg.get("content", "")
+                content_preview = content[:200] + "..." if len(content) > 200 else content
+                logger.error(f"Message {i} ({msg.get('role')}): {len(content)} chars - {content_preview}")
             raise
 
     def generate_international_description(
@@ -199,6 +232,13 @@ Berikan output dalam format JSON yang valid."""
         Returns:
             Dict with market intelligence data
         """
+        # Validate and sanitize inputs
+        product_name = str(product_name or "").strip()[:200]
+        description = str(description or "").strip()[:500]  # Limit length
+        material_composition = str(material_composition or "").strip()[:200]
+        category = str(category or "").strip()[:100]
+        
+        # Build prompt parts to avoid issues with f-string formatting
         system_prompt = """Kamu adalah ahli market intelligence dan perdagangan internasional.
 Tugasmu adalah menganalisis produk dan memberikan rekomendasi pasar ekspor yang tepat.
 
@@ -206,54 +246,36 @@ ATURAN:
 - Berikan rekomendasi berdasarkan data tren pasar terkini
 - Pertimbangkan cultural preferences, regulasi, dan demand
 - Sertakan alasan konkret untuk setiap rekomendasi
-- Fokus pada pasar yang realistis untuk UMKM Indonesia"""
+- Fokus pada pasar yang realistis untuk UMKM Indonesia
+- Output HARUS dalam format JSON yang valid"""
 
-        prompt = f"""Analisis produk berikut dan berikan market intelligence:
-
-INFORMASI PRODUK:
-- Nama Produk: {product_name}
-- Deskripsi: {description}
-- Material: {material_composition}
-- Kategori: {category}
-- Harga Saat Ini (USD): ${current_price_usd if current_price_usd else 'Belum ditentukan'}
-- Kapasitas Produksi: {production_capacity if production_capacity else 'N/A'} unit/bulan
-
-OUTPUT FORMAT (dalam JSON):
-{{
-    "recommended_countries": [
-        {{
-            "country": "Country Name",
-            "country_code": "XX",
-            "score": 85,
-            "reason": "Alasan kenapa negara ini cocok",
-            "market_size": "Large/Medium/Small",
-            "competition_level": "High/Medium/Low",
-            "suggested_price_range": "$XX - $XX",
-            "entry_strategy": "Strategi masuk pasar"
-        }}
-    ],
-    "countries_to_avoid": [
-        {{
-            "country": "Country Name",
-            "country_code": "XX",
-            "reason": "Alasan kenapa sebaiknya dihindari"
-        }}
-    ],
-    "market_trends": [
-        "Trend 1 yang relevan",
-        "Trend 2 yang relevan"
-    ],
-    "competitive_landscape": "Analisis kompetitor dan positioning",
-    "growth_opportunities": ["Opportunity 1", "Opportunity 2"],
-    "risks_and_challenges": ["Risk 1", "Risk 2"],
-    "overall_recommendation": "Rekomendasi umum untuk strategi ekspor"
-}}
-
-Berikan minimal 3 negara rekomendasi dan 2 negara yang sebaiknya dihindari.
-Output dalam format JSON yang valid."""
+        # Build prompt with proper escaping and length limits
+        price_str = f"${current_price_usd:.2f}" if current_price_usd else "Belum ditentukan"
+        capacity_str = f"{production_capacity} unit/bulan" if production_capacity else "N/A"
+        
+        prompt_parts = [
+            "Analisis produk berikut dan berikan market intelligence:",
+            "",
+            "INFORMASI PRODUK:",
+            f"- Nama Produk: {product_name}",
+            f"- Deskripsi: {description}",
+            f"- Material: {material_composition}",
+            f"- Kategori: {category}",
+            f"- Harga Saat Ini (USD): {price_str}",
+            f"- Kapasitas Produksi: {capacity_str}",
+            "",
+            "OUTPUT FORMAT (dalam JSON):",
+            '{"recommended_countries": [{"country": "Country Name", "country_code": "XX", "score": 85, "reason": "Alasan", "market_size": "Large/Medium/Small", "competition_level": "High/Medium/Low", "suggested_price_range": "$XX - $XX", "entry_strategy": "Strategi"}], "countries_to_avoid": [{"country": "Country Name", "country_code": "XX", "reason": "Alasan"}], "market_trends": ["Trend 1", "Trend 2"], "competitive_landscape": "Analisis", "growth_opportunities": ["Opportunity 1"], "risks_and_challenges": ["Risk 1"], "overall_recommendation": "Rekomendasi"}',
+            "",
+            "Berikan minimal 3 negara rekomendasi dan 2 negara yang sebaiknya dihindari.",
+            "Output dalam format JSON yang valid."
+        ]
+        
+        prompt = "\n".join(prompt_parts)
 
         try:
-            response = self._call_ai(prompt, system_prompt, temperature=0.4)
+            # Use same temperature as successful KolosalAIService (0.1)
+            response = self._call_ai(prompt, system_prompt, temperature=0.1)
 
             # Extract JSON from response
             json_match = re.search(r'\{[\s\S]*\}', response)
