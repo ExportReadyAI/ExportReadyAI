@@ -122,8 +122,13 @@ class ProductDetailView(RetrieveUpdateDestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         # Return standard 204 No Content on successful delete
         instance = self.get_object()
+        product_id = instance.id
         self.perform_destroy(instance)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        from core.responses import success_response
+        return success_response(
+            data={"id": product_id},
+            message="Product deleted successfully"
+        )
 
 
 class EnrichProductView(APIView):

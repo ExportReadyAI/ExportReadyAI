@@ -244,8 +244,12 @@ class BuyerRequestDetailView(APIView):
         if request.user.role == UserRole.BUYER and buyer_request.buyer_user_id != request.user.id:
             return forbidden_response("You can only delete your own requests")
 
+        request_id = buyer_request.id
         buyer_request.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return success_response(
+            data={"id": request_id},
+            message="Buyer request deleted successfully"
+        )
 
 
 class BuyerRequestStatusView(APIView):

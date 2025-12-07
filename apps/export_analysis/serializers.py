@@ -119,6 +119,7 @@ class ExportAnalysisDetailSerializer(serializers.ModelSerializer):
     """
     # PBI-BE-M3-02: Export Analysis detail serializer
     # [DONE] Include: product details, country details, compliance_issues, recommendations
+    # [DONE] Include: product snapshot for audit trail
     """
 
     product_name = serializers.CharField(source="product.name_local", read_only=True)
@@ -128,6 +129,10 @@ class ExportAnalysisDetailSerializer(serializers.ModelSerializer):
     country_name = serializers.CharField(source="target_country.country_name", read_only=True)
     country_code = serializers.CharField(source="target_country.country_code", read_only=True)
     country_region = serializers.CharField(source="target_country.region", read_only=True)
+    
+    # Snapshot information
+    snapshot_product_name = serializers.SerializerMethodField()
+    product_changed = serializers.SerializerMethodField()
 
     class Meta:
         model = ExportAnalysis
@@ -146,9 +151,20 @@ class ExportAnalysisDetailSerializer(serializers.ModelSerializer):
             "status_grade",
             "compliance_issues",
             "recommendations",
+            "product_snapshot",
+            "snapshot_product_name",
+            "product_changed",
             "analyzed_at",
             "created_at",
         ]
+    
+    def get_snapshot_product_name(self, obj):
+        """Get product name from snapshot."""
+        return obj.get_snapshot_product_name()
+    
+    def get_product_changed(self, obj):
+        """Check if product has changed since analysis."""
+        return obj.is_product_changed()
 
 
 class ExportAnalysisCreateSerializer(serializers.Serializer):
