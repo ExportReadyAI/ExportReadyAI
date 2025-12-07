@@ -185,6 +185,15 @@ class BuyerRequest(models.Model):
         default=RequestStatus.OPEN,
         verbose_name="status",
     )
+    selected_catalog = models.ForeignKey(
+        "catalogs.ProductCatalog",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="buyer_requests_selected",
+        verbose_name="selected catalog",
+        help_text="Catalog selected by buyer when closing the request",
+    )
     created_at = models.DateTimeField("created at", auto_now_add=True)
     updated_at = models.DateTimeField("updated at", auto_now=True)
 

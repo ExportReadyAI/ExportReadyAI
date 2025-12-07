@@ -23,6 +23,8 @@ class BuyerRequestSerializer(serializers.ModelSerializer):
     buyer_company_name = serializers.SerializerMethodField()
     buyer_email = serializers.CharField(source="buyer_user.email", read_only=True)
     buyer_full_name = serializers.CharField(source="buyer_user.full_name", read_only=True)
+    selected_catalog_id = serializers.IntegerField(source="selected_catalog.id", read_only=True, allow_null=True)
+    selected_catalog_name = serializers.CharField(source="selected_catalog.display_name", read_only=True, allow_null=True)
 
     class Meta:
         model = BuyerRequest
@@ -40,6 +42,8 @@ class BuyerRequestSerializer(serializers.ModelSerializer):
             "keyword_tags",
             "min_rank_required",
             "status",
+            "selected_catalog_id",
+            "selected_catalog_name",
             "created_at",
             "updated_at",
         ]
@@ -164,6 +168,18 @@ class UpdateBuyerRequestStatusSerializer(serializers.Serializer):
         instance.status = validated_data["status"]
         instance.save()
         return instance
+
+
+class SelectCatalogSerializer(serializers.Serializer):
+    """
+    Serializer for selecting a catalog and closing buyer request.
+    """
+
+    catalog_id = serializers.IntegerField(
+        required=True,
+        help_text="ID of the selected catalog",
+        error_messages={"required": "catalog_id is required"},
+    )
 
 
 class MatchedCatalogSerializer(serializers.Serializer):

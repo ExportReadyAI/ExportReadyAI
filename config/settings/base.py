@@ -71,6 +71,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # Add WhiteNoise for static files
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -272,4 +273,3 @@ SUPABASE_ANON_KEY = env("SUPABASE_ANON_KEY", default="")
 SUPABASE_STORAGE_BUCKET = env("SUPABASE_STORAGE_BUCKET", default="educational-materials")
 # Bucket for catalog images
 SUPABASE_CATALOG_BUCKET = env("SUPABASE_CATALOG_BUCKET", default="catalogs")
-

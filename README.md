@@ -227,14 +227,41 @@ python manage.py showmigrations
 
 ## Production Deployment
 
-1. Set `DEBUG=False`
-2. Configure proper `ALLOWED_HOSTS`
-3. Set up proper database
-4. Configure CORS properly
-5. Use gunicorn for serving:
-   ```bash
-   gunicorn config.wsgi:application --bind 0.0.0.0:8000
-   ```
+### Quick Deploy to Railway
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new)
+
+**Pre-deployment checklist:**
+```bash
+python check_deployment.py
+```
+
+**Deployment Options:**
+
+1. **Railway (Recommended)** - One-click deployment with PostgreSQL
+   - See [RAILWAY_DEPLOYMENT_GUIDE.md](./RAILWAY_DEPLOYMENT_GUIDE.md) for detailed instructions
+   - Quick start: [RAILWAY_QUICK_START.md](./RAILWAY_QUICK_START.md)
+
+2. **Manual Deployment**
+   - Set `DEBUG=False`
+   - Configure proper `ALLOWED_HOSTS`
+   - Set up PostgreSQL database
+   - Configure CORS properly
+   - Use gunicorn for serving:
+     ```bash
+     gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4
+     ```
+
+**Required Environment Variables:**
+- `SECRET_KEY` - Django secret key (50+ characters)
+- `DATABASE_URL` - PostgreSQL connection string
+- `DJANGO_SETTINGS_MODULE=config.settings.production`
+- `ALLOWED_HOSTS` - Comma-separated allowed domains
+- `CORS_ALLOWED_ORIGINS` - Frontend URLs
+- `KOLOSAL_API_KEY` - AI service API key
+- `SUPABASE_URL` & `SUPABASE_ANON_KEY` - Storage service
+
+See `env.example` for complete list of environment variables.
 
 ## License
 
