@@ -34,6 +34,7 @@ from .views import (
     CatalogVariantOptionDetailView,
     PublicCatalogListView,
     PublicCatalogDetailView,
+    ForwarderCatalogListView,
     # AI Views
     CatalogAIDescriptionView,
     CatalogMarketIntelligenceView,
@@ -103,4 +104,7 @@ urlpatterns = [
     # Public catalog views (no auth required)
     path("public/", PublicCatalogListView.as_view(), name="public-catalog-list"),
     path("public/<int:catalog_id>/", PublicCatalogDetailView.as_view(), name="public-catalog-detail"),
+
+    # Forwarder catalog views (forwarder-only)
+    path("forwarder/", ForwarderCatalogListView.as_view(), name="forwarder-catalog-list"),
 ]

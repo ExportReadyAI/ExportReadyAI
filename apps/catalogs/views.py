@@ -13,6 +13,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from core.permissions import IsForwarder
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.shortcuts import get_object_or_404
@@ -32,6 +33,7 @@ from .serializers import (
     CatalogVariantOptionSerializer,
     CatalogVariantOptionCreateSerializer,
     PublicCatalogSerializer,
+    ForwarderCatalogSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -221,15 +223,15 @@ class CatalogDetailView(APIView):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_catalog(self, catalog_id, user):
-        """Helper to get catalog with ownership check or published catalog for buyers"""
+        """Helper to get catalog with ownership check or published catalog for buyers/forwarders"""
         from apps.users.models import UserRole
         
-        # If user is BUYER, allow access to published catalogs
-        if user.role == UserRole.BUYER:
+        # If user is BUYER or FORWARDER, allow access to published catalogs
+        if user.role in [UserRole.BUYER, UserRole.FORWARDER]:
             return get_object_or_404(
-                ProductCatalog.objects.select_related("product").prefetch_related("images", "variant_types__options"),
+                ProductCatalog.objects.select_related("product__business__user").prefetch_related("images", "variant_types__options"),
                 id=catalog_id,
-                is_published=True,  # Buyers can only view published catalogs
+                is_published=True,  # Buyers and Forwarders can only view published catalogs
             )
         
         # For UMKM/others, check ownership
@@ -241,8 +243,16 @@ class CatalogDetailView(APIView):
 
     def get(self, request, catalog_id):
         """Get catalog detail"""
+        from apps.users.models import UserRole
+        
         catalog = self.get_catalog(catalog_id, request.user)
-        serializer = ProductCatalogSerializer(catalog)
+        
+        # Use ForwarderCatalogSerializer for forwarders to include UMKM contact info
+        if request.user.role == UserRole.FORWARDER:
+            serializer = ForwarderCatalogSerializer(catalog)
+        else:
+            serializer = ProductCatalogSerializer(catalog)
+        
         return Response(serializer.data)
 
     def put(self, request, catalog_id):
@@ -896,6 +906,67 @@ class PublicCatalogDetailView(APIView):
 
 
 # ============================================================
+# FORWARDER CATALOG VIEWS (For Forwarders)
+# ============================================================
+
+
+class ForwarderCatalogListView(APIView):
+    """
+    GET: List all published catalogs from all UMKM (forwarder-only)
+    
+    Allows forwarders to browse all available catalogs to understand
+    what products are available for logistics services.
+    """
+
+    permission_classes = [IsForwarder]
+    pagination_class = CatalogPagination
+
+    def get(self, request):
+        """List all published catalogs for forwarders"""
+        catalogs = ProductCatalog.objects.filter(
+            is_published=True
+        ).select_related("product__business__user").prefetch_related("images", "variant_types__options")
+
+        # Search by display name
+        search = request.query_params.get("search")
+        if search:
+            catalogs = catalogs.filter(display_name__icontains=search)
+
+        # Filter by tags
+        tag = request.query_params.get("tag")
+        if tag:
+            catalogs = catalogs.filter(tags__contains=[tag])
+
+        # Filter by price range
+        min_price = request.query_params.get("min_price")
+        max_price = request.query_params.get("max_price")
+        if min_price:
+            try:
+                catalogs = catalogs.filter(base_price_exw__gte=float(min_price))
+            except ValueError:
+                pass
+        if max_price:
+            try:
+                catalogs = catalogs.filter(base_price_exw__lte=float(max_price))
+            except ValueError:
+                pass
+
+        # Filter by seller (UMKM company name)
+        seller = request.query_params.get("seller")
+        if seller:
+            catalogs = catalogs.filter(product__business__company_name__icontains=seller)
+
+        # Paginate
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(catalogs, request)
+
+        serializer = ForwarderCatalogSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+
+
+
+# ============================================================
 # AI FEATURE VIEWS
 # ============================================================
 
@@ -1006,7 +1077,7 @@ class CatalogMarketIntelligenceView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, catalog_id):
-        """Get existing market intelligence"""
+        """Get existing market intelligence with forwarder recommendations"""
         catalog = get_object_or_404(
             ProductCatalog.objects.select_related("product"),
             id=catalog_id,
@@ -1016,21 +1087,44 @@ class CatalogMarketIntelligenceView(APIView):
 
         # Check on PRODUCT level, not catalog
         if hasattr(product, 'market_intelligence'):
+            from apps.forwarders.services import ForwarderRecommendationService
+            
             mi = product.market_intelligence
+            
+            # Enrich recommended_countries with forwarder recommendations
+            enriched_countries = []
+            for country in mi.recommended_countries:
+                country_code = country.get("country_code", "")
+                
+                # Get forwarder recommendations for this country (top 3, sorted by average_rating)
+                forwarders = []
+                if country_code:
+                    forwarders = ForwarderRecommendationService.get_recommendations(
+                        destination_country=country_code,
+                        limit=3
+                    )
+                
+                # Add forwarders to country object
+                enriched_country = {
+                    **country,
+                    "forwarders": forwarders if forwarders else []
+                }
+                enriched_countries.append(enriched_country)
+            
             return Response({
                 "success": True,
                 "message": "Market intelligence retrieved",
                 "data": {
                     "id": mi.id,
                     "product_id": product.id,
-                    "recommended_countries": mi.recommended_countries,
+                    "recommended_countries": enriched_countries,
                     "countries_to_avoid": mi.countries_to_avoid,
                     "market_trends": mi.market_trends,
                     "competitive_landscape": mi.competitive_landscape,
                     "growth_opportunities": mi.growth_opportunities,
                     "risks_and_challenges": mi.risks_and_challenges,
                     "overall_recommendation": mi.overall_recommendation,
-                    "generated_at": mi.generated_at,
+                    "generated_at": mi.generated_at.isoformat() if mi.generated_at else None,
                 }
             })
 
