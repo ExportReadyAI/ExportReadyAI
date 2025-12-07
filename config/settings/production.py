@@ -1,11 +1,11 @@
 """
-"""Django Production Settings for ExportReady.AI
+Django Production Settings for ExportReady.AI
 """
 
 import dj_database_url
 from .base import *  # noqa: F401, F403
 
-DEBUG = env.bool("DEBUG", default=False)  # noqa: F405ool("DEBUG", default=False)  # noqa: F405
+DEBUG = env.bool("DEBUG", default=False)  # noqa: F405
 
 # Railway-specific: Get allowed hosts from environment
 RAILWAY_STATIC_URL = env("RAILWAY_STATIC_URL", default="")  # noqa: F405
